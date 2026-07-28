@@ -134,6 +134,42 @@ button.secondary {
   font-size: 0.9rem;
 }
 
+.advanced {
+  margin-top: 1rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.75rem;
+}
+
+.advanced summary {
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.advanced .field {
+  margin-top: 0.75rem;
+  max-width: 34rem;
+}
+
+.diagnostics summary {
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.diagnostics pre {
+  margin: 0.75rem 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.8rem;
+  background: #f7f9fc;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.75rem;
+  max-height: 24rem;
+  overflow: auto;
+}
+
 .card.error {
   border-color: var(--diff);
   background: #fff5f5;

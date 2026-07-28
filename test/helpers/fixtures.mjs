@@ -1,4 +1,5 @@
 import http from 'node:http';
+import net from 'node:net';
 import PDFDocument from 'pdfkit';
 import { createApp } from '../../src/server/app.js';
 import { PdfStore } from '../../src/server/lib/store.js';
@@ -63,7 +64,59 @@ export async function startMockTarget(handler) {
   return { ...handle, requests };
 }
 
-/** Startet die Anwendung selbst (echter HTTP-Server, echtes fetch). */
+/**
+ * Roher TCP-Server: zeichnet die Bytes auf, die tatsächlich über die Leitung gehen.
+ * Damit lässt sich prüfen, dass der Body unverändert als Rohtext gesendet wird.
+ */
+export async function startRawTarget({ responseBody = Buffer.from('%PDF-1.4\n%%EOF') } = {}) {
+  const captured = [];
+  const server = net.createServer((socket) => {
+    let raw = Buffer.alloc(0);
+    socket.on('error', () => {});
+    socket.on('data', (chunk) => {
+      raw = Buffer.concat([raw, chunk]);
+      const headerEnd = raw.indexOf('\r\n\r\n');
+      if (headerEnd === -1) return;
+
+      const head = raw.subarray(0, headerEnd).toString('latin1');
+      const contentLength = Number(/content-length:\s*(\d+)/i.exec(head)?.[1] ?? 0);
+      const bodyBytes = raw.subarray(headerEnd + 4);
+      if (bodyBytes.length < contentLength) return;
+
+      captured.push({
+        raw,
+        head,
+        headerLines: head.split('\r\n'),
+        requestLine: head.split('\r\n')[0],
+        headers: Object.fromEntries(
+          head
+            .split('\r\n')
+            .slice(1)
+            .map((line) => {
+              const index = line.indexOf(':');
+              return [line.slice(0, index).toLowerCase().trim(), line.slice(index + 1).trim()];
+            })
+        ),
+        bodyBytes: bodyBytes.subarray(0, contentLength),
+        body: bodyBytes.subarray(0, contentLength).toString('utf8'),
+      });
+
+      socket.end(
+        Buffer.concat([
+          Buffer.from(
+            `HTTP/1.1 200 OK\r\nContent-Type: application/pdf\r\nContent-Length: ${responseBody.length}\r\nConnection: close\r\n\r\n`,
+            'latin1'
+          ),
+          responseBody,
+        ])
+      );
+    });
+  });
+  const handle = await listen(server);
+  return { ...handle, captured };
+}
+
+/** Startet die Anwendung selbst (echter HTTP-Server). */
 export async function startApp(options = {}) {
   const app = createApp({ store: new PdfStore(), ...options });
   const server = http.createServer(app);

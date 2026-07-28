@@ -59,6 +59,34 @@
           </label>
         </div>
 
+        <details class="advanced" id="advanced">
+          <summary>Erweiterte Einstellungen</summary>
+          <label class="field">
+            <span class="field-label">Content-Type des POST-Requests</span>
+            <input
+              type="text"
+              id="content-type"
+              name="contentType"
+              value="text/plain; charset=utf-8"
+              spellcheck="false"
+              list="content-type-vorschlaege"
+            />
+            <datalist id="content-type-vorschlaege">
+              <option value="text/plain; charset=utf-8"></option>
+              <option value="text/plain"></option>
+              <option value="text/plain; charset=iso-8859-1"></option>
+              <option value="application/xml"></option>
+              <option value="application/xml; charset=utf-8"></option>
+              <option value="text/xml"></option>
+              <option value="application/octet-stream"></option>
+            </datalist>
+            <span class="hint">
+              Der Body wird immer als Rohtext gesendet (kein Multipart, kein Chunking). Das
+              charset bestimmt die Byte-Kodierung des Bodys.
+            </span>
+          </label>
+        </details>
+
         <div class="actions">
           <!-- FR2 -->
           <button type="submit" id="generate-button" class="primary">Vergleich generieren</button>
@@ -93,6 +121,12 @@
           Rot markierte Bereiche kennzeichnen Abweichungen zwischen Referenz-PDF und generiertem PDF.
         </p>
       </section>
+
+      <!-- Diagnose: zeigt den exakt gesendeten Request (hilft bei Problemen mit dem Endpoint) -->
+      <details id="diagnostics" class="card diagnostics" hidden>
+        <summary>Gesendeter Request (Diagnose)</summary>
+        <pre id="diagnostics-content"></pre>
+      </details>
 
       <!-- FR4 + FR6: Anzeige der PDFs mit farblicher Hervorhebung -->
       <section id="viewer" class="viewer" hidden></section>

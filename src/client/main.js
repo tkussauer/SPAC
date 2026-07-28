@@ -13,6 +13,10 @@ const dom = {
   referenceFile: el('reference-file'),
   targetUrl: el('target-url'),
   templatePath: el('template-path'),
+  contentType: el('content-type'),
+  advanced: el('advanced'),
+  diagnostics: el('diagnostics'),
+  diagnosticsContent: el('diagnostics-content'),
   generateButton: el('generate-button'),
   refreshButton: el('refresh-button'),
   downloadLink: el('download-link'),
@@ -47,6 +51,10 @@ function loadSettings() {
     const saved = JSON.parse(raw);
     if (typeof saved.targetUrl === 'string') dom.targetUrl.value = saved.targetUrl;
     if (typeof saved.templatePath === 'string') dom.templatePath.value = saved.templatePath;
+    if (typeof saved.contentType === 'string' && saved.contentType.trim()) {
+      dom.contentType.value = saved.contentType;
+      if (saved.contentType !== dom.contentType.defaultValue) dom.advanced?.setAttribute('open', '');
+    }
   } catch {
     /* Einstellungen sind optional – Fehler hier dürfen die App nicht blockieren. */
   }
@@ -56,7 +64,11 @@ function saveSettings() {
   try {
     localStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ targetUrl: dom.targetUrl.value, templatePath: dom.templatePath.value })
+      JSON.stringify({
+        targetUrl: dom.targetUrl.value,
+        templatePath: dom.templatePath.value,
+        contentType: dom.contentType.value,
+      })
     );
   } catch {
     /* z. B. privater Modus – ignorierbar */
@@ -184,6 +196,7 @@ async function runComparison({ reason = 'generate' } = {}) {
         xmlContent: state.xmlContent,
         xmlFileName: state.xmlFileName,
         referenceId: state.referenceId,
+        contentType: dom.contentType.value.trim() || undefined,
       }),
     });
 
@@ -210,9 +223,25 @@ async function runComparison({ reason = 'generate' } = {}) {
 
 // --------------------------------------------------------------- Darstellung
 
+/** Zeigt den exakt gesendeten Request an – hilft beim Eingrenzen von Endpoint-Problemen. */
+function renderDiagnostics(result) {
+  const headerLines = Object.entries(result.request.headers ?? {}).map(([name, value]) => `${name}: ${value}`);
+  dom.diagnosticsContent.textContent = [
+    `POST ${result.request.targetUrl}`,
+    ...headerLines,
+    '',
+    result.request.body,
+    '',
+    `--- Antwort: HTTP ${result.response.status}, ${result.response.contentType ?? 'ohne Content-Type'}, ` +
+      `${result.response.bytes} Bytes in ${result.response.durationMs} ms`,
+  ].join('\n');
+  dom.diagnostics.hidden = false;
+}
+
 async function renderResult(result) {
   dom.downloadLink.href = `${result.generatedUrl}?download=1`;
   dom.downloadLink.hidden = false;
+  renderDiagnostics(result);
 
   if (result.comparisonError) {
     showError(result.comparisonError.message, result.comparisonError.details);
@@ -415,6 +444,7 @@ function wireUp() {
     saveSettings();
     dom.refreshButton.disabled = !canRefresh();
   });
+  dom.contentType.addEventListener('input', saveSettings);
 }
 
 if (typeof document !== 'undefined') {

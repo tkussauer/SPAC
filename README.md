@@ -119,15 +119,41 @@ Gewählt wurde der in der Spec vorgeschlagene Node-Weg.
 
 Der Body ist laut FR3 reiner Text (Vorlagepfad + Leerzeile + XML) und damit kein
 wohlgeformtes XML-Dokument – `application/xml` wäre sachlich falsch, `multipart/form-data`
-würde die vorgegebene Zeilenstruktur zerstören. Gesendet wird zusätzlich
-`Accept: application/pdf, */*`.
+würde die vorgegebene Zeilenstruktur zerstören.
 
-Umstellen ohne Codeänderung, falls der Zielendpoint etwas anderes verlangt:
+**Der Body wird immer als Rohtext gesendet** – exakt die Bytes aus Vorlagepfad, Leerzeile und
+XML-Inhalt, ohne Multipart-Rahmen, ohne URL-Kodierung, ohne JSON-Wrapper und ohne Chunking
+(es wird ein festes `Content-Length` gesetzt). Der Aufruf läuft direkt über `node:http` statt
+über `fetch`, weil `fetch` ungefragt Browser-Header wie `sec-fetch-mode`, `accept-language`,
+`accept-encoding` und `user-agent` ergänzt, die strikte Endpoints ablehnen können. Über die
+Leitung gehen ausschließlich:
+
+```
+POST /pfad HTTP/1.1
+Content-Type: text/plain; charset=utf-8
+Content-Length: 42
+Accept: application/pdf, */*
+Host: server:8080
+Connection: keep-alive
+
+C:\Vorlagen\rechnung.tpl
+
+<rechnung nummer="4711">
+  …
+```
+
+Der Content-Type ist **in der Oberfläche unter „Erweiterte Einstellungen" änderbar** (z. B.
+`text/plain` ohne charset, `application/xml`, `text/xml`, `application/octet-stream`) und wird
+wie die übrigen Eingaben gespeichert. Der Vorgabewert lässt sich zusätzlich setzen über:
 
 ```bat
 set SPAC_POST_CONTENT_TYPE=application/xml
 start.bat
 ```
+
+Das `charset` im Content-Type steuert dabei auch die **Byte-Kodierung des Bodys**:
+`charset=iso-8859-1` (bzw. `windows-1252`) sendet Umlaute als Einzelbytes statt in UTF-8 –
+relevant für Endpoints, die kein UTF-8 erwarten.
 
 Ergänzende Annahmen zum Body:
 
@@ -209,6 +235,7 @@ sind keine Binärdateien im Repository nötig und es besteht keine Netzwerkabhä
 | FR1 Eingabemaske mit vier Feldern | `test/fr1-eingabemaske.test.js` |
 | FR2 POST-Request an die Ziel-URL | `test/fr2-fr3-post.test.js` |
 | FR3 Aufbau des POST-Bodys | `test/fr2-fr3-post.test.js` |
+| FR3 Rohtext-Übertragung (Byte-Ebene, Header, charset) | `test/fr3-raw-body.test.js` |
 | FR4 PDF-Response anzeigen/speichern | `test/fr4-pdf-response.test.js` |
 | FR5 seitenweiser Vergleich | `test/fr5-vergleich.test.js` |
 | FR6 farbliche Hervorhebung | `test/fr6-hervorhebung.test.js` |
@@ -232,3 +259,21 @@ Alle Fehler erscheinen als roter Kasten oberhalb des Ergebnisses, u. a.:
 | beschädigte Referenz-PDF | „Das Referenz-PDF konnte nicht gelesen werden: … Möglicherweise ist die Datei beschädigt oder passwortgeschützt." |
 
 Schlägt nur der Vergleich fehl, bleibt das generierte PDF trotzdem sicht- und herunterladbar.
+
+---
+
+## Wenn der Zielendpoint den Request ablehnt
+
+Unter dem Ergebnis klappt der Bereich **„Gesendeter Request (Diagnose)"** auf. Er zeigt
+den vollständigen Request, so wie er über die Leitung ging: Ziel-URL, alle gesendeten Header
+und den kompletten Body – sowie Status, Content-Type und Größe der Antwort. Damit lässt sich
+direkt mit dem Betreiber des Endpoints abgleichen, was erwartet wird.
+
+Typische Stellschrauben:
+
+| Symptom | Ansatzpunkt |
+| --- | --- |
+| HTTP 415 / „Unsupported Media Type" | Content-Type unter „Erweiterte Einstellungen" ändern, z. B. auf `text/plain` (ohne charset), `application/xml` oder `text/xml` |
+| Umlaute kommen falsch an | `charset=iso-8859-1` im Content-Type setzen |
+| HTTP 400 mit Verweis auf die XML-Struktur | Body in der Diagnose prüfen: Zeile 1 = Vorlagepfad, Zeile 2 leer, ab Zeile 3 die XML ohne Deklaration |
+| Antwort ist HTML statt PDF | Die Fehlermeldung zeigt den Anfang der Antwort – meist eine Fehlerseite des Zielservice |

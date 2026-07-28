@@ -13,10 +13,14 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 export const PUBLIC_DIR = path.resolve(here, '../../public');
 const MAX_BODY = process.env.SPAC_MAX_UPLOAD || '75mb';
 
+/** Maximale Größe der Body-Vorschau in der Diagnose-Ausgabe. */
+const BODY_PREVIEW_LIMIT = 20_000;
+
 /**
- * Baut die Express-App. `fetchImpl` ist injizierbar, damit Tests den Zielservice mocken können.
+ * Baut die Express-App. `transport` ist injizierbar (node:http-kompatibel),
+ * damit Tests den Zielservice bei Bedarf mocken können.
  */
-export function createApp({ fetchImpl = globalThis.fetch, store = new PdfStore(), publicDir = PUBLIC_DIR } = {}) {
+export function createApp({ transport = null, store = new PdfStore(), publicDir = PUBLIC_DIR } = {}) {
   const app = express();
   app.disable('x-powered-by');
 
@@ -85,7 +89,7 @@ export function createApp({ fetchImpl = globalThis.fetch, store = new PdfStore()
         targetUrl: url,
         body,
         contentType: typeof contentType === 'string' && contentType.trim() ? contentType.trim() : undefined,
-        fetchImpl,
+        transport,
       });
 
       const generatedId = store.put(result.pdf, { kind: 'generated', fileName: 'vergleichsdokument.pdf' });
@@ -108,11 +112,14 @@ export function createApp({ fetchImpl = globalThis.fetch, store = new PdfStore()
         generatedUrl: `/api/pdf/${generatedId}`,
         referenceUrl: reference ? `/api/pdf/${reference.id}` : null,
         request: {
+          method: 'POST',
           targetUrl: url,
           templatePath: template,
           contentType: result.requestContentType,
-          bodyBytes: Buffer.byteLength(body, 'utf8'),
-          bodyPreview: body.split('\n').slice(0, 6).join('\n'),
+          encoding: result.requestEncoding,
+          headers: result.requestHeaders,
+          bodyBytes: result.requestBytes,
+          body: body.length > BODY_PREVIEW_LIMIT ? `${body.slice(0, BODY_PREVIEW_LIMIT)}\n… (gekürzt)` : body,
         },
         response: {
           status: result.status,
