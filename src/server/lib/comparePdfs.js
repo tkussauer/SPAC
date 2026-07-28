@@ -1,12 +1,31 @@
 import { extractPages } from './pdfText.js';
 import { diffTokens, similarity } from './diff.js';
 
-/** Farbcodes für die Hervorhebung in der UI (FR6). */
+/**
+ * Farbcodes für die Hervorhebung in der UI (FR6).
+ * Markiert wird ausschließlich im generierten Dokument.
+ */
 export const HIGHLIGHT_COLORS = {
-  removed: '#e5484d', // nur in der Referenz vorhanden -> rot
-  added: '#e5484d', // nur im generierten PDF vorhanden -> rot
-  missingPage: '#e5484d',
+  added: '#e5484d', // weicht von der Referenz ab -> rot, durchgezogen
+  missing: '#e5484d', // steht in der Referenz, fehlt hier -> rot, gestrichelt
 };
+
+/**
+ * Rechnet eine Box von der Referenzseite auf die Geometrie der generierten Seite um.
+ * Nötig, damit fehlender Text an der passenden Stelle im generierten Dokument
+ * markiert werden kann, auch wenn die Seitenformate leicht abweichen.
+ */
+export function projectBox(box, fromPage, toPage) {
+  const scaleX = fromPage?.width ? (toPage?.width ?? fromPage.width) / fromPage.width : 1;
+  const scaleY = fromPage?.height ? (toPage?.height ?? fromPage.height) / fromPage.height : 1;
+  const round = (value) => Math.round(value * 100) / 100;
+  return {
+    x: round(box.x * scaleX),
+    y: round(box.y * scaleY),
+    width: round(box.width * scaleX),
+    height: round(box.height * scaleY),
+  };
+}
 
 /** Fasst benachbarte Boxen derselben Zeile zu einer Box zusammen, damit die UI ruhiger wirkt. */
 export function mergeBoxes(boxes, { gap = 6 } = {}) {
@@ -36,21 +55,28 @@ export function comparePage(referencePage, generatedPage) {
     genWords.map((w) => w.text)
   );
 
-  const removed = [];
+  // Markiert wird ausschließlich im generierten Dokument:
+  //  - "added":   Text, der dort steht und von der Referenz abweicht
+  //  - "missing": Text der Referenz, der dort fehlt – an die entsprechende
+  //               Stelle der generierten Seite projiziert, sonst wäre er unsichtbar
+  const missing = [];
   const added = [];
   for (const op of ops) {
     if (op.type === 'removed') {
       const word = refWords[op.aIndex];
-      removed.push({ ...word.box, text: word.text, type: 'removed' });
+      missing.push({
+        ...projectBox(word.box, referencePage, generatedPage),
+        text: word.text,
+        type: 'missing',
+      });
     } else if (op.type === 'added') {
       const word = genWords[op.bIndex];
       added.push({ ...word.box, text: word.text, type: 'added' });
     }
   }
 
-  const mergedRemoved = mergeBoxes(removed);
-  const mergedAdded = mergeBoxes(added);
-  const identical = removed.length === 0 && added.length === 0;
+  const identical = missing.length === 0 && added.length === 0;
+  const highlights = [...mergeBoxes(added), ...mergeBoxes(missing)];
 
   return {
     pageNumber: referencePage?.pageNumber ?? generatedPage?.pageNumber,
@@ -59,13 +85,14 @@ export function comparePage(referencePage, generatedPage) {
     similarity: similarity(ops),
     referencePresent: Boolean(referencePage),
     generatedPresent: Boolean(generatedPage),
+    // Die Referenzseite wird ohne Markierungen dargestellt.
     reference: referencePage
-      ? { width: referencePage.width, height: referencePage.height, highlights: mergedRemoved }
+      ? { width: referencePage.width, height: referencePage.height, highlights: [] }
       : null,
     generated: generatedPage
-      ? { width: generatedPage.width, height: generatedPage.height, highlights: mergedAdded }
+      ? { width: generatedPage.width, height: generatedPage.height, highlights }
       : null,
-    counts: { removedWords: removed.length, addedWords: added.length },
+    counts: { removedWords: missing.length, addedWords: added.length },
   };
 }
 
@@ -92,18 +119,25 @@ export async function comparePdfs(referencePdf, generatedPdf) {
       continue;
     }
 
-    const onlyIn = referencePage ? 'reference' : 'generated';
+    // Seite nur in einem der beiden Dokumente vorhanden.
+    // Existiert sie nur im generierten Dokument, gilt ihr gesamter Inhalt als Abweichung;
+    // fehlt sie dort, gibt es nichts zu markieren – die Seite wird als fehlend ausgewiesen.
     const page = referencePage ?? generatedPage;
-    const highlights = mergeBoxes(page.words.map((w) => ({ ...w.box, text: w.text, type: 'page-missing' })));
     pages.push({
       pageNumber: index + 1,
-      status: onlyIn === 'reference' ? 'only-in-reference' : 'only-in-generated',
+      status: referencePage ? 'only-in-reference' : 'only-in-generated',
       identical: false,
       similarity: 0,
       referencePresent: Boolean(referencePage),
       generatedPresent: Boolean(generatedPage),
-      reference: referencePage ? { width: page.width, height: page.height, highlights } : null,
-      generated: generatedPage ? { width: page.width, height: page.height, highlights } : null,
+      reference: referencePage ? { width: page.width, height: page.height, highlights: [] } : null,
+      generated: generatedPage
+        ? {
+            width: page.width,
+            height: page.height,
+            highlights: mergeBoxes(page.words.map((w) => ({ ...w.box, text: w.text, type: 'added' }))),
+          }
+        : null,
       counts: {
         removedWords: referencePage ? page.words.length : 0,
         addedWords: generatedPage ? page.words.length : 0,

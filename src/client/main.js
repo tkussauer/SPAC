@@ -431,12 +431,16 @@ async function buildPane(title, doc, pageNumber, highlights, geometry = null) {
   const baseHeight = geometry?.height || viewport.height / RENDER_SCALE;
   for (const box of highlights) {
     const marker = document.createElement('div');
-    marker.className = 'highlight';
+    // "missing" = Text der Referenz, der hier fehlt -> gestrichelt dargestellt
+    marker.className = box.type === 'missing' ? 'highlight missing' : 'highlight';
     marker.style.left = `${(box.x / baseWidth) * 100}%`;
     marker.style.top = `${(box.y / baseHeight) * 100}%`;
     marker.style.width = `${(box.width / baseWidth) * 100}%`;
     marker.style.height = `${(box.height / baseHeight) * 100}%`;
-    marker.title = box.text ? `Abweichung: ${box.text}` : 'Abweichung';
+    marker.title =
+      box.type === 'missing'
+        ? `Fehlt gegenüber der Referenz: ${box.text ?? ''}`.trim()
+        : `Weicht von der Referenz ab: ${box.text ?? ''}`.trim();
     wrapper.append(marker);
   }
 

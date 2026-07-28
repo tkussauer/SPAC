@@ -2,7 +2,7 @@
 
 Lokale Web-Anwendung, die eine Test-XML-Datei an einen konfigurierbaren Endpoint schickt,
 das zurückgelieferte PDF anzeigt und es Seite für Seite mit einer Referenz-PDF vergleicht.
-Abweichungen werden rot markiert.
+Abweichungen werden **im generierten Dokument** rot markiert; die Referenz bleibt unmarkiert.
 
 Umgesetzte Spezifikation: [`docs/spec.md`](docs/spec.md)
 
@@ -52,6 +52,23 @@ npm test          # Testsuite
 | **Referenz-PDF-Datei** | Lokale `.pdf`-Datei, gegen die verglichen wird. |
 | **Ziel-URL** | Endpoint, der das PDF erzeugt, z. B. `http://server:8080/generate`. |
 | **Vorlagepfad** | Freier String, wird als erste Zeile des POST-Bodys gesendet. |
+
+### Darstellung der Abweichungen
+
+Beide Dokumente werden nebeneinander angezeigt, **markiert wird aber ausschließlich das
+generierte Dokument** – die Referenz dient als unveränderter Vergleichsmaßstab. Es gibt zwei
+Markierungsarten:
+
+| Markierung | Bedeutung |
+| --- | --- |
+| rot gefüllt, durchgezogener Rand | Der Text steht im generierten Dokument und weicht von der Referenz ab. |
+| gestrichelter Rand, ohne Füllung | Der Text steht in der Referenz und **fehlt** im generierten Dokument. |
+
+Fehlender Text hat im generierten Dokument naturgemäß keine eigene Position. Er wird deshalb
+an der Stelle markiert, an der er in der Referenz steht (bei abweichenden Seitenformaten
+umgerechnet). Verschiebt sich der Text durch die fehlende Stelle, kann die gestrichelte
+Markierung daher über nachfolgendem Inhalt liegen – der Tooltip nennt den konkret fehlenden
+Text.
 
 - **Vergleich generieren** – sendet den POST-Request, zeigt das erzeugte PDF und den Vergleich an.
 - **Refresh** – wiederholt denselben POST-Aufruf mit den aktuell eingetragenen Werten und
@@ -243,7 +260,7 @@ sind keine Binärdateien im Repository nötig und es besteht keine Netzwerkabhä
 | Protokollierung von Request-Body und Antwort im Fehlerfall | `test/logging.test.js` |
 | FR4 PDF-Response anzeigen/speichern | `test/fr4-pdf-response.test.js` |
 | FR5 seitenweiser Vergleich | `test/fr5-vergleich.test.js` |
-| FR6 farbliche Hervorhebung | `test/fr6-hervorhebung.test.js` |
+| FR6 farbliche Hervorhebung (nur im generierten Dokument) | `test/fr6-hervorhebung.test.js` |
 | FR7 Refresh-Button | `test/fr7-refresh.test.js` |
 | FR8 Start unter Windows | `test/fr8-windows-start.test.js` |
 | NFR1–NFR3 Fehlerbehandlung, Offline-Betrieb, Persistenz | `test/nfr-fehlerbehandlung.test.js`, `test/fr7-refresh.test.js`, `test/fr8-windows-start.test.js` |

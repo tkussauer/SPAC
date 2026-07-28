@@ -217,11 +217,18 @@ button.secondary {
 
 .legend {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.35rem 1rem;
   font-size: 0.85rem;
   color: var(--muted);
   margin: 0.75rem 0 0;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .legend-swatch {
@@ -231,6 +238,11 @@ button.secondary {
   border-radius: 3px;
   background: var(--diff-soft);
   border: 1px solid var(--diff);
+}
+
+.legend-swatch.missing {
+  background: transparent;
+  border-style: dashed;
 }
 
 .viewer {
@@ -300,13 +312,19 @@ button.secondary {
   height: auto;
 }
 
-/* FR6: farbliche Hervorhebung der Abweichungen */
+/* FR6: farbliche Hervorhebung der Abweichungen – nur im generierten Dokument */
 .highlight {
   position: absolute;
   background: var(--diff-soft);
   border: 1px solid var(--diff);
   border-radius: 2px;
-  pointer-events: none;
+  cursor: help; /* zeigt per Tooltip den betroffenen Text */
+}
+
+/* Text, der in der Referenz steht und im generierten Dokument fehlt */
+.highlight.missing {
+  background: transparent;
+  border-style: dashed;
 }
 
 .pane-missing {
