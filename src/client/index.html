@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PDF-Vergleichstool</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%231e5eff'/%3E%3Crect x='4' y='6' width='8' height='2' fill='%23fff'/%3E%3Crect x='4' y='9' width='5' height='2' fill='%23e5484d'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <h1>PDF-Vergleichstool</h1>
+      <p class="subtitle">Test-XML an den Zielservice senden, erzeugtes PDF mit der Referenz vergleichen.</p>
+    </header>
+
+    <main>
+      <!-- FR1: Eingabemaske mit vier Feldern -->
+      <form id="compare-form" class="card" autocomplete="off">
+        <div class="grid">
+          <label class="field">
+            <span class="field-label">Test-XML-Datei</span>
+            <input type="file" id="xml-file" name="xmlFile" accept=".xml,text/xml,application/xml" required />
+            <span class="hint" id="xml-file-hint">Lokale .xml-Datei auswählen</span>
+          </label>
+
+          <label class="field">
+            <span class="field-label">Referenz-PDF-Datei</span>
+            <input type="file" id="reference-file" name="referenceFile" accept=".pdf,application/pdf" required />
+            <span class="hint" id="reference-file-hint">Lokale .pdf-Datei auswählen</span>
+          </label>
+
+          <label class="field">
+            <span class="field-label">Ziel-URL für den POST-Aufruf</span>
+            <input
+              type="text"
+              id="target-url"
+              name="targetUrl"
+              placeholder="http://localhost:8080/generate"
+              spellcheck="false"
+              required
+            />
+            <span class="hint">http:// oder https://</span>
+          </label>
+
+          <label class="field">
+            <span class="field-label">Vorlagepfad</span>
+            <input
+              type="text"
+              id="template-path"
+              name="templatePath"
+              placeholder="z. B. C:\Vorlagen\rechnung.tpl"
+              spellcheck="false"
+              required
+            />
+            <span class="hint">Freier String – wird als erste Zeile des POST-Bodys gesendet</span>
+          </label>
+        </div>
+
+        <div class="actions">
+          <!-- FR2 -->
+          <button type="submit" id="generate-button" class="primary">Vergleich generieren</button>
+          <!-- FR7 -->
+          <button type="button" id="refresh-button" class="secondary" disabled title="Wiederholt den POST-Aufruf mit den aktuellen Werten">
+            Refresh
+          </button>
+          <a id="download-link" class="link-button" hidden download="vergleichsdokument.pdf">Generiertes PDF herunterladen</a>
+          <span id="status" class="status" role="status" aria-live="polite"></span>
+        </div>
+      </form>
+
+      <!-- NFR2: Fehleranzeige -->
+      <div id="error-box" class="card error" hidden role="alert">
+        <strong id="error-title">Fehler</strong>
+        <p id="error-message"></p>
+        <pre id="error-details" hidden></pre>
+      </div>
+
+      <!-- FR5: Vergleichsergebnis -->
+      <section id="summary" class="card summary" hidden>
+        <h2>Vergleichsergebnis</h2>
+        <ul class="summary-list">
+          <li>Status: <strong id="summary-status"></strong></li>
+          <li>Seiten (Referenz / Generiert): <strong id="summary-pages"></strong></li>
+          <li>Abweichende Seiten: <strong id="summary-diff-pages"></strong></li>
+          <li>Abweichende Wörter (Referenz / Generiert): <strong id="summary-words"></strong></li>
+          <li>Antwortzeit des Zielservice: <strong id="summary-duration"></strong></li>
+        </ul>
+        <p class="legend">
+          <span class="legend-swatch"></span>
+          Rot markierte Bereiche kennzeichnen Abweichungen zwischen Referenz-PDF und generiertem PDF.
+        </p>
+      </section>
+
+      <!-- FR4 + FR6: Anzeige der PDFs mit farblicher Hervorhebung -->
+      <section id="viewer" class="viewer" hidden></section>
+    </main>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

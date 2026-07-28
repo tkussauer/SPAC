@@ -1,0 +1,176 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import express from 'express';
+
+import { AppError, isAppError } from './lib/errors.js';
+import { buildPostBody } from './lib/buildPostBody.js';
+import { comparePdfs } from './lib/comparePdfs.js';
+import { postToTarget, DEFAULT_CONTENT_TYPE, DEFAULT_TIMEOUT_MS } from './lib/postClient.js';
+import { PdfStore } from './lib/store.js';
+import { assertPdf, validateTargetUrl, validateTemplatePath, validateXmlContent } from './lib/validate.js';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+export const PUBLIC_DIR = path.resolve(here, '../../public');
+const MAX_BODY = process.env.SPAC_MAX_UPLOAD || '75mb';
+
+/**
+ * Baut die Express-App. `fetchImpl` ist injizierbar, damit Tests den Zielservice mocken können.
+ */
+export function createApp({ fetchImpl = globalThis.fetch, store = new PdfStore(), publicDir = PUBLIC_DIR } = {}) {
+  const app = express();
+  app.disable('x-powered-by');
+
+  app.use(express.json({ limit: MAX_BODY }));
+  app.use(express.raw({ type: ['application/pdf', 'application/octet-stream'], limit: MAX_BODY }));
+  app.use(express.static(publicDir, { index: 'index.html', maxAge: 0 }));
+
+  app.locals.store = store;
+
+  app.get('/api/health', (_req, res) => {
+    res.json({ ok: true, version: 1, storedPdfs: store.size });
+  });
+
+  app.get('/api/config', (_req, res) => {
+    res.json({
+      postContentType: DEFAULT_CONTENT_TYPE,
+      postTimeoutMs: DEFAULT_TIMEOUT_MS,
+      diffMethod: 'text-extraction',
+      templatePathValidation: 'non-empty-string',
+    });
+  });
+
+  /** FR1: Referenz-PDF hochladen (roher Datei-Upload, kein multipart nötig). */
+  app.post('/api/reference', (req, res, next) => {
+    try {
+      const body = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+      if (body.length === 0) {
+        throw new AppError(
+          'REFERENCE_REQUIRED',
+          'Es wurde keine Referenz-PDF-Datei übertragen. Bitte eine PDF-Datei auswählen.'
+        );
+      }
+      const fileName = decodeURIComponent(req.get('x-file-name') || 'referenz.pdf');
+      assertPdf(body, { source: `Die Datei "${fileName}"`, contentType: req.get('content-type') });
+
+      const referenceId = store.put(body, { kind: 'reference', fileName });
+      res.status(201).json({ referenceId, fileName, bytes: body.length });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  /**
+   * FR2/FR3/FR4/FR5/FR6 – und über wiederholten Aufruf mit denselben Werten auch FR7 (Refresh).
+   */
+  app.post('/api/generate', async (req, res, next) => {
+    try {
+      const { targetUrl, templatePath, xmlContent, xmlFileName, referenceId, contentType } = req.body ?? {};
+
+      const url = validateTargetUrl(targetUrl);
+      const template = validateTemplatePath(templatePath);
+      validateXmlContent(xmlContent, xmlFileName || 'Test-XML');
+
+      const reference = referenceId ? store.get(referenceId) : null;
+      if (referenceId && !reference) {
+        throw new AppError(
+          'REFERENCE_NOT_FOUND',
+          'Das Referenz-PDF ist auf dem Server nicht mehr vorhanden (z. B. nach einem Serverneustart). Bitte die Datei erneut auswählen.',
+          { status: 410 }
+        );
+      }
+
+      const body = buildPostBody({ templatePath: template, xmlContent });
+
+      const result = await postToTarget({
+        targetUrl: url,
+        body,
+        contentType: typeof contentType === 'string' && contentType.trim() ? contentType.trim() : undefined,
+        fetchImpl,
+      });
+
+      const generatedId = store.put(result.pdf, { kind: 'generated', fileName: 'vergleichsdokument.pdf' });
+
+      let comparison = null;
+      let comparisonError = null;
+      if (reference) {
+        try {
+          comparison = await comparePdfs(reference.buffer, result.pdf);
+        } catch (err) {
+          comparisonError = isAppError(err)
+            ? err.toJSON().error
+            : { code: 'COMPARE_FAILED', message: `Vergleich fehlgeschlagen: ${err.message}` };
+        }
+      }
+
+      res.json({
+        generatedId,
+        referenceId: reference?.id ?? null,
+        generatedUrl: `/api/pdf/${generatedId}`,
+        referenceUrl: reference ? `/api/pdf/${reference.id}` : null,
+        request: {
+          targetUrl: url,
+          templatePath: template,
+          contentType: result.requestContentType,
+          bodyBytes: Buffer.byteLength(body, 'utf8'),
+          bodyPreview: body.split('\n').slice(0, 6).join('\n'),
+        },
+        response: {
+          status: result.status,
+          contentType: result.contentType,
+          bytes: result.pdf.length,
+          durationMs: result.durationMs,
+        },
+        comparison,
+        comparisonError,
+        generatedAt: new Date().toISOString(),
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  /** FR4: Das PDF (generiert oder Referenz) für die Anzeige ausliefern. */
+  app.get('/api/pdf/:id', (req, res, next) => {
+    try {
+      const entry = store.get(req.params.id);
+      if (!entry) {
+        throw new AppError('PDF_NOT_FOUND', 'Das angeforderte PDF ist nicht (mehr) verfügbar.', { status: 404 });
+      }
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader(
+        'Content-Disposition',
+        `${req.query.download === '1' ? 'attachment' : 'inline'}; filename="${entry.fileName || 'dokument.pdf'}"`
+      );
+      res.send(entry.buffer);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  app.use('/api', (_req, res) => {
+    res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Unbekannter API-Endpunkt.' } });
+  });
+
+  // Zentrale Fehlerbehandlung – liefert immer eine verständliche Meldung (NFR2).
+  // eslint-disable-next-line no-unused-vars
+  app.use((err, _req, res, _next) => {
+    if (isAppError(err)) {
+      return res.status(err.status).json(err.toJSON());
+    }
+    if (err?.type === 'entity.too.large') {
+      return res.status(413).json({
+        error: { code: 'FILE_TOO_LARGE', message: `Die Datei ist zu groß (Limit: ${MAX_BODY}).` },
+      });
+    }
+    if (err instanceof SyntaxError) {
+      return res.status(400).json({
+        error: { code: 'BAD_JSON', message: 'Die Anfrage konnte nicht gelesen werden (ungültiges JSON).' },
+      });
+    }
+    return res.status(500).json({
+      error: { code: 'INTERNAL_ERROR', message: `Unerwarteter Serverfehler: ${err?.message || 'unbekannt'}` },
+    });
+  });
+
+  return app;
+}

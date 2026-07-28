@@ -1,0 +1,279 @@
+:root {
+  --bg: #f4f6f9;
+  --fg: #16202c;
+  --muted: #5c6b7a;
+  --card: #ffffff;
+  --border: #d8dee7;
+  --primary: #1e5eff;
+  --primary-fg: #ffffff;
+  --diff: #e5484d;
+  --diff-soft: rgba(229, 72, 77, 0.32);
+  --ok: #1a7f4b;
+  --radius: 10px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0 0 4rem;
+  font-family: "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+  line-height: 1.5;
+}
+
+.app-header {
+  padding: 1.5rem 2rem 0.5rem;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.subtitle {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+}
+
+main {
+  padding: 1rem 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.field-label {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+input[type="text"],
+input[type="file"] {
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  font: inherit;
+  width: 100%;
+}
+
+input[type="text"]:focus,
+input[type="file"]:focus {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+.hint {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+button {
+  font: inherit;
+  padding: 0.55rem 1.1rem;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+button.primary {
+  background: var(--primary);
+  color: var(--primary-fg);
+}
+
+button.secondary {
+  background: #fff;
+  border-color: var(--border);
+  color: var(--fg);
+}
+
+.link-button {
+  color: var(--primary);
+  text-decoration: underline;
+  font-size: 0.9rem;
+}
+
+.status {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.card.error {
+  border-color: var(--diff);
+  background: #fff5f5;
+  color: #7f1d1d;
+}
+
+.card.error pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.8rem;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem;
+  max-height: 12rem;
+  overflow: auto;
+}
+
+.summary h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+}
+
+.summary-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.25rem 1rem;
+  font-size: 0.92rem;
+}
+
+.status-equal {
+  color: var(--ok);
+}
+
+.status-different {
+  color: var(--diff);
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin: 0.75rem 0 0;
+}
+
+.legend-swatch {
+  display: inline-block;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 3px;
+  background: var(--diff-soft);
+  border: 1px solid var(--diff);
+}
+
+.viewer {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.page-row {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+}
+
+.page-row header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: baseline;
+  margin-bottom: 0.75rem;
+}
+
+.page-row h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.page-badge {
+  font-size: 0.78rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+}
+
+.panes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1rem;
+}
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.pane-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.page-canvas-wrapper {
+  position: relative;
+  display: inline-block;
+  border: 1px solid var(--border);
+  background: #fff;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.page-canvas-wrapper canvas {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+/* FR6: farbliche Hervorhebung der Abweichungen */
+.highlight {
+  position: absolute;
+  background: var(--diff-soft);
+  border: 1px solid var(--diff);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.pane-missing {
+  border: 1px dashed var(--diff);
+  border-radius: 6px;
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--diff);
+  background: #fff5f5;
+}

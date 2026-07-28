@@ -1,0 +1,148 @@
+import { createRequire } from 'node:module';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { AppError } from './errors.js';
+import { looksLikePdf } from './validate.js';
+
+const require = createRequire(import.meta.url);
+
+let pdfjsPromise = null;
+
+/** Lädt pdfjs-dist (Legacy-Build, läuft ohne native Abhängigkeiten in Node). */
+async function getPdfjs() {
+  if (!pdfjsPromise) {
+    pdfjsPromise = import('pdfjs-dist/legacy/build/pdf.mjs');
+  }
+  return pdfjsPromise;
+}
+
+function standardFontDataUrl() {
+  const pkg = require.resolve('pdfjs-dist/package.json');
+  return pathToFileURL(path.join(path.dirname(pkg), 'standard_fonts') + path.sep).href;
+}
+
+/**
+ * Relative Zeichenbreiten für die Positionsschätzung innerhalb eines Textblocks.
+ * pdf.js liefert nur die Gesamtbreite eines Textelements; die Wortpositionen darin
+ * werden über diese Gewichte geschätzt (deutlich genauer als eine Gleichverteilung).
+ */
+const NARROW = new Set([...'ijltfIrJ.,;:!|\'`()[]{}/\\-"']);
+const WIDE = new Set([...'mwMWQGO@%&']);
+
+function charWeight(char) {
+  if (char === ' ' || char === '\t') return 0.5;
+  if (NARROW.has(char)) return 0.45;
+  if (WIDE.has(char)) return 1.4;
+  if (char >= 'A' && char <= 'Z') return 1.15;
+  return 1;
+}
+
+/** Kumulierte Gewichte je Zeichenposition (Index 0..n). */
+export function cumulativeWeights(str) {
+  const cumulative = new Array(str.length + 1);
+  cumulative[0] = 0;
+  for (let i = 0; i < str.length; i += 1) {
+    cumulative[i + 1] = cumulative[i] + charWeight(str[i]);
+  }
+  return cumulative;
+}
+
+/**
+ * Zerlegt ein pdf.js-TextItem in einzelne Wörter mit geschätzten Bounding-Boxen.
+ * Die Box-Koordinaten sind in PDF-Punkten mit Ursprung oben links.
+ */
+export function itemToWords(item, pageHeight) {
+  const str = item.str ?? '';
+  if (str.trim() === '') return [];
+
+  const transform = item.transform || [1, 0, 0, 1, 0, 0];
+  const x0 = transform[4];
+  const baseline = transform[5];
+  const totalWidth = item.width || 0;
+  const height = item.height || Math.abs(transform[3]) || 10;
+  const top = pageHeight - baseline - height;
+
+  const cumulative = cumulativeWeights(str);
+  const totalWeight = cumulative[str.length] || 1;
+  const unit = totalWidth / totalWeight;
+
+  const words = [];
+  const wordRe = /\S+/g;
+  let match;
+  while ((match = wordRe.exec(str)) !== null) {
+    const start = match.index;
+    const text = match[0];
+    const end = start + text.length;
+    words.push({
+      text,
+      box: {
+        x: round(x0 + cumulative[start] * unit),
+        y: round(top),
+        width: round(Math.max((cumulative[end] - cumulative[start]) * unit, 1)),
+        height: round(Math.max(height, 1)),
+      },
+    });
+  }
+  return words;
+}
+
+function round(value) {
+  return Math.round(value * 100) / 100;
+}
+
+/**
+ * Extrahiert Text inkl. Positionen seitenweise aus einem PDF-Buffer.
+ * @returns {Promise<{pageCount:number, pages:Array<{pageNumber:number,width:number,height:number,text:string,words:Array}>}>}
+ */
+export async function extractPages(buffer, { label = 'PDF' } = {}) {
+  if (!looksLikePdf(buffer)) {
+    throw new AppError('INVALID_PDF', `${label} ist kein gültiges PDF-Dokument.`, { status: 400 });
+  }
+
+  const pdfjs = await getPdfjs();
+  let doc;
+  try {
+    doc = await pdfjs.getDocument({
+      data: new Uint8Array(Buffer.from(buffer)),
+      standardFontDataUrl: standardFontDataUrl(),
+      useSystemFonts: false,
+      isEvalSupported: false,
+      verbosity: 0,
+    }).promise;
+  } catch (err) {
+    throw new AppError(
+      'PDF_PARSE_FAILED',
+      `${label} konnte nicht gelesen werden: ${err?.message || 'unbekannter Fehler'}. ` +
+        'Möglicherweise ist die Datei beschädigt oder passwortgeschützt.',
+      { status: 400, cause: err }
+    );
+  }
+
+  const pages = [];
+  try {
+    for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber += 1) {
+      const page = await doc.getPage(pageNumber);
+      const viewport = page.getViewport({ scale: 1 });
+      const content = await page.getTextContent();
+
+      const words = [];
+      for (const item of content.items) {
+        if (typeof item.str !== 'string') continue;
+        words.push(...itemToWords(item, viewport.height));
+      }
+
+      pages.push({
+        pageNumber,
+        width: round(viewport.width),
+        height: round(viewport.height),
+        text: words.map((w) => w.text).join(' '),
+        words,
+      });
+      page.cleanup();
+    }
+  } finally {
+    await doc.destroy?.();
+  }
+
+  return { pageCount: pages.length, pages };
+}
