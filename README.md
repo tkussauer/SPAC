@@ -79,6 +79,36 @@ Die Seiten werden auf die tatsächlich verfügbare Spaltenbreite gezeichnet (in 
 daher scharf) und nach einer Größenänderung des Fensters neu gerendert. Zwischen den beiden
 Dokumenten bleibt dadurch nur der Spaltenabstand.
 
+### Reiter „Markdown-Vergleich"
+
+Neben der PDF-Ansicht gibt es einen zweiten Reiter: Beide Dokumente werden in eine
+Markdown-Textfassung übersetzt und **zeilenweise** gegenübergestellt – nützlich, um
+Änderungen zu lesen, zu kopieren oder in ein Ticket zu übernehmen.
+
+Aus dem PDF wird dabei:
+
+- `## Seite N` als Überschrift je Seite,
+- `### …` für Zeilen, deren Schrift deutlich größer ist als der Fließtext,
+- `- …` für Zeilen, die mit einem Aufzählungszeichen beginnen,
+- ansonsten die Textzeile, aus den Wortpositionen wieder zu Zeilen zusammengesetzt.
+
+Die Gegenüberstellung färbt ganze Zeilen und hebt innerhalb geänderter Zeilen zusätzlich die
+abweichenden **Wörter** hervor:
+
+| Farbe | Bedeutung |
+| --- | --- |
+| rot (nur links) | Zeile steht nur in der Referenz |
+| grün (nur rechts) | Zeile steht nur im generierten Dokument |
+| gelb (beide Seiten) | Zeile wurde geändert; die abweichenden Wörter sind zusätzlich markiert |
+
+Mit **„Nur Abweichungen anzeigen"** werden identische Zeilen ausgeblendet; über
+**„Markdown herunterladen"** lässt sich die Textfassung des generierten Dokuments speichern.
+Der zuletzt gewählte Reiter und der Filter bleiben erhalten.
+
+Es handelt sich um eine Textfassung, nicht um eine originalgetreue Layout-Umwandlung:
+Tabellenstrukturen, Bilder und Spaltenlayouts gehen dabei verloren – für die Prüfung der
+Layouttreue bleibt der PDF-Reiter zuständig.
+
 - **Vergleich generieren** – sendet den POST-Request, zeigt das erzeugte PDF und den Vergleich an.
 - **Refresh** – wiederholt denselben POST-Aufruf mit den aktuell eingetragenen Werten und
   aktualisiert Ergebnis und Markierungen (z. B. nachdem die Vorlage auf dem Server geändert wurde).
@@ -103,6 +133,8 @@ src/server/
   lib/postClient.js       POST-Aufruf an die Ziel-URL (FR2/FR4)
   lib/pdfText.js          Text- und Positionsextraktion via pdf.js
   lib/diff.js             Wort-Diff (LCS)
+  lib/pdfMarkdown.js      Textfassung des PDFs als Markdown
+  lib/markdownDiff.js     zeilenweiser Vergleich der Markdown-Fassungen
   lib/comparePdfs.js      seitenweiser Vergleich + Markierungsboxen (FR5/FR6)
   lib/validate.js         Eingabe- und PDF-Prüfungen (NFR2)
   lib/logger.js           Protokoll nach logs/spac.log (Body + Antwort bei Fehlern)
@@ -267,6 +299,7 @@ sind keine Binärdateien im Repository nötig und es besteht keine Netzwerkabhä
 | FR3 Aufbau des POST-Bodys | `test/fr2-fr3-post.test.js` |
 | FR3 Rohtext-Übertragung (Byte-Ebene, Header, charset) | `test/fr3-raw-body.test.js` |
 | Protokollierung von Request-Body und Antwort im Fehlerfall | `test/logging.test.js` |
+| Markdown-Vergleich (Textfassung, Zeilendiff, Reiter) | `test/markdown-compare.test.js` |
 | FR4 PDF-Response anzeigen/speichern | `test/fr4-pdf-response.test.js` |
 | FR5 seitenweiser Vergleich | `test/fr5-vergleich.test.js` |
 | FR6 farbliche Hervorhebung (nur im generierten Dokument) | `test/fr6-hervorhebung.test.js` |

@@ -1,5 +1,7 @@
 import { extractPages } from './pdfText.js';
 import { diffTokens, similarity } from './diff.js';
+import { pagesToMarkdown } from './pdfMarkdown.js';
+import { buildLineDiff } from './markdownDiff.js';
 
 /**
  * Farbcodes für die Hervorhebung in der UI (FR6).
@@ -145,9 +147,21 @@ export async function comparePdfs(referencePdf, generatedPdf) {
     });
   }
 
+  // Zusätzliche Textfassung beider Dokumente als Markdown, zeilenweise verglichen.
+  const referenceMarkdown = pagesToMarkdown(reference.pages);
+  const generatedMarkdown = pagesToMarkdown(generated.pages);
+  const lineDiff = buildLineDiff(referenceMarkdown.lines, generatedMarkdown.lines);
+
   const differingPages = pages.filter((p) => !p.identical);
   return {
     method: 'text-extraction',
+    markdown: {
+      reference: referenceMarkdown.text,
+      generated: generatedMarkdown.text,
+      rows: lineDiff.rows,
+      totals: lineDiff.totals,
+      identical: lineDiff.identical,
+    },
     identical: differingPages.length === 0 && reference.pageCount === generated.pageCount,
     pageCount: { reference: reference.pageCount, generated: generated.pageCount, compared: pageCount },
     pageCountMatches: reference.pageCount === generated.pageCount,

@@ -20,6 +20,14 @@ const dom = {
   templatePath: el('template-path'),
   contentType: el('content-type'),
   advanced: el('advanced'),
+  tabs: el('tabs'),
+  tabPdf: el('tab-pdf'),
+  tabMarkdown: el('tab-markdown'),
+  markdownPanel: el('markdown-panel'),
+  markdownRows: el('markdown-rows'),
+  markdownSummary: el('markdown-summary'),
+  markdownDownload: el('markdown-download'),
+  toggleOnlyDiff: el('toggle-only-diff'),
   viewControls: el('view-controls'),
   toggleHighlights: el('toggle-highlights'),
   diagnostics: el('diagnostics'),
@@ -49,6 +57,10 @@ const state = {
   busy: false,
   /** Zeichenaufträge der aktuellen Ansicht – für das Neuzeichnen nach Größenänderung. */
   renderJobs: [],
+  /** Markdown-Fassung und Zeilenvergleich des letzten Laufs. */
+  markdown: null,
+  /** Aktiver Reiter: 'pdf' oder 'markdown'. */
+  activeTab: 'pdf',
 };
 
 // ---------------------------------------------------------------- Persistenz
@@ -65,6 +77,8 @@ function loadSettings() {
       if (saved.contentType !== dom.contentType.defaultValue) dom.advanced?.setAttribute('open', '');
     }
     if (typeof saved.showHighlights === 'boolean') dom.toggleHighlights.checked = saved.showHighlights;
+    if (typeof saved.onlyDiffLines === 'boolean') dom.toggleOnlyDiff.checked = saved.onlyDiffLines;
+    if (saved.activeTab === 'markdown' || saved.activeTab === 'pdf') state.activeTab = saved.activeTab;
   } catch {
     /* Einstellungen sind optional – Fehler hier dürfen die App nicht blockieren. */
   }
@@ -79,6 +93,8 @@ function saveSettings() {
         templatePath: dom.templatePath.value,
         contentType: dom.contentType.value,
         showHighlights: dom.toggleHighlights.checked,
+        onlyDiffLines: dom.toggleOnlyDiff.checked,
+        activeTab: state.activeTab,
       })
     );
   } catch {
@@ -302,9 +318,12 @@ async function renderResult(result) {
 
   const comparison = result.comparison;
   if (!comparison) {
-    // Ohne Referenz-PDF gibt es nichts zu markieren – nur das erzeugte PDF anzeigen.
+    // Ohne Referenz-PDF gibt es nichts zu vergleichen – nur das erzeugte PDF anzeigen.
     dom.summary.hidden = true;
     dom.viewControls.hidden = true;
+    dom.tabs.hidden = true;
+    dom.markdownPanel.hidden = true;
+    state.markdown = null;
     dom.viewer.hidden = false;
     dom.viewer.replaceChildren();
     await renderSinglePdf(result.generatedUrl);
@@ -312,7 +331,130 @@ async function renderResult(result) {
   }
 
   renderSummary(result, comparison);
+  renderMarkdownDiff(comparison.markdown);
+  dom.tabs.hidden = false;
   await renderPages(result, comparison);
+  applyActiveTab();
+}
+
+// ------------------------------------------------------- Markdown-Vergleich
+
+/** Baut die zeilenweise Gegenüberstellung der beiden Markdown-Fassungen. */
+function renderMarkdownDiff(markdown) {
+  state.markdown = markdown ?? null;
+  if (!markdown) {
+    dom.markdownRows.replaceChildren();
+    dom.markdownSummary.textContent = '';
+    return;
+  }
+
+  dom.markdownSummary.textContent = markdown.identical
+    ? 'Die Textfassungen stimmen überein.'
+    : `${markdown.totals.changed} geänderte, ${markdown.totals.removed} nur in der Referenz, ` +
+      `${markdown.totals.added} nur im generierten Dokument`;
+
+  dom.markdownDownload.href = URL.createObjectURL(new Blob([markdown.generated], { type: 'text/markdown' }));
+
+  paintMarkdownRows();
+}
+
+function paintMarkdownRows() {
+  const markdown = state.markdown;
+  if (!markdown) return;
+
+  const nurAbweichungen = dom.toggleOnlyDiff.checked;
+  const rows = nurAbweichungen ? markdown.rows.filter((row) => row.type !== 'equal') : markdown.rows;
+
+  if (rows.length === 0) {
+    const leer = document.createElement('p');
+    leer.className = 'markdown-empty';
+    leer.textContent = nurAbweichungen
+      ? 'Keine Abweichungen in der Textfassung gefunden.'
+      : 'Keine Textinhalte gefunden.';
+    dom.markdownRows.replaceChildren(leer);
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  for (const row of rows) {
+    fragment.append(buildMarkdownRow(row));
+  }
+  dom.markdownRows.replaceChildren(fragment);
+}
+
+const ROW_BACKGROUND = {
+  removed: { reference: 'md-removed-bg', generated: null },
+  added: { reference: null, generated: 'md-added-bg' },
+  changed: { reference: 'md-changed-bg', generated: 'md-changed-bg' },
+  equal: { reference: null, generated: null },
+};
+
+function buildMarkdownRow(row) {
+  const element = document.createElement('div');
+  element.className = `markdown-row ${row.type}`;
+
+  const hintergrund = ROW_BACKGROUND[row.type] ?? ROW_BACKGROUND.equal;
+  element.append(
+    lineNumber(row.referenceLine),
+    textCell(row.reference, hintergrund.reference, row.segments?.reference),
+    lineNumber(row.generatedLine),
+    textCell(row.generated, hintergrund.generated, row.segments?.generated)
+  );
+  return element;
+}
+
+function lineNumber(value) {
+  const cell = document.createElement('span');
+  cell.className = 'md-line-number';
+  cell.textContent = value === null || value === undefined ? '' : String(value);
+  return cell;
+}
+
+/** Textzelle; bei geänderten Zeilen werden die abweichenden Wörter zusätzlich ausgezeichnet. */
+function textCell(text, backgroundClass, segments) {
+  const cell = document.createElement('span');
+  cell.className = `md-text${backgroundClass ? ` ${backgroundClass}` : ''}`;
+
+  if (text === null || text === undefined) {
+    cell.textContent = '';
+    return cell;
+  }
+
+  if (segments) {
+    for (const segment of segments) {
+      if (segment.changed) {
+        const mark = document.createElement('mark');
+        mark.textContent = segment.text;
+        cell.append(mark);
+      } else {
+        cell.append(document.createTextNode(segment.text));
+      }
+    }
+    return cell;
+  }
+
+  cell.textContent = text;
+  return cell;
+}
+
+// ------------------------------------------------------------------- Reiter
+
+function setActiveTab(tab) {
+  state.activeTab = tab === 'markdown' ? 'markdown' : 'pdf';
+  applyActiveTab();
+  saveSettings();
+}
+
+function applyActiveTab() {
+  const markdownAktiv = state.activeTab === 'markdown';
+  const ergebnisVorhanden = !dom.tabs.hidden;
+
+  dom.tabPdf.setAttribute('aria-selected', String(!markdownAktiv));
+  dom.tabMarkdown.setAttribute('aria-selected', String(markdownAktiv));
+
+  dom.viewer.hidden = markdownAktiv || dom.viewer.childElementCount === 0;
+  dom.viewControls.hidden = markdownAktiv || !ergebnisVorhanden || !state.markdown;
+  dom.markdownPanel.hidden = !markdownAktiv || !ergebnisVorhanden;
 }
 
 function renderSummary(result, comparison) {
@@ -581,6 +723,23 @@ function wireUp() {
     saveSettings();
   });
   applyHighlightVisibility();
+
+  // Reiter: PDF-Vergleich / Markdown-Vergleich
+  dom.tabPdf.addEventListener('click', () => setActiveTab('pdf'));
+  dom.tabMarkdown.addEventListener('click', () => setActiveTab('markdown'));
+  dom.tabs.addEventListener('keydown', (event) => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    event.preventDefault();
+    const ziel = state.activeTab === 'pdf' ? 'markdown' : 'pdf';
+    setActiveTab(ziel);
+    (ziel === 'pdf' ? dom.tabPdf : dom.tabMarkdown).focus();
+  });
+
+  dom.toggleOnlyDiff.addEventListener('change', () => {
+    paintMarkdownRows();
+    saveSettings();
+  });
+  applyActiveTab();
 
   // Nach einer Größenänderung des Fensters neu zeichnen, damit die Seiten scharf bleiben.
   let resizeTimer = null;

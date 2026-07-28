@@ -118,6 +118,22 @@
         </ul>
       </section>
 
+      <!-- Diagnose: zeigt den exakt gesendeten Request (hilft bei Problemen mit dem Endpoint) -->
+      <details id="diagnostics" class="card diagnostics" hidden>
+        <summary>Gesendeter Request (Diagnose)</summary>
+        <pre id="diagnostics-content"></pre>
+      </details>
+
+      <!-- Umschaltung zwischen PDF-Ansicht und Markdown-Vergleich -->
+      <div id="tabs" class="tabs" role="tablist" aria-label="Vergleichsansicht" hidden>
+        <button type="button" class="tab" role="tab" id="tab-pdf" aria-controls="viewer" aria-selected="true">
+          PDF-Vergleich
+        </button>
+        <button type="button" class="tab" role="tab" id="tab-markdown" aria-controls="markdown-panel" aria-selected="false">
+          Markdown-Vergleich
+        </button>
+      </div>
+
       <!-- Ansichtssteuerung: Markierungen ein-/ausblenden und Legende (FR6) -->
       <section id="view-controls" class="card view-controls" hidden>
         <label class="toggle">
@@ -138,14 +154,32 @@
         </p>
       </section>
 
-      <!-- Diagnose: zeigt den exakt gesendeten Request (hilft bei Problemen mit dem Endpoint) -->
-      <details id="diagnostics" class="card diagnostics" hidden>
-        <summary>Gesendeter Request (Diagnose)</summary>
-        <pre id="diagnostics-content"></pre>
-      </details>
-
       <!-- FR4 + FR6: Anzeige der PDFs mit farblicher Hervorhebung -->
-      <section id="viewer" class="viewer" hidden></section>
+      <section id="viewer" class="viewer" role="tabpanel" aria-labelledby="tab-pdf" hidden></section>
+
+      <!-- Markdown-Vergleich: beide Dokumente als Text, zeilenweise gegenübergestellt -->
+      <section id="markdown-panel" class="markdown-panel" role="tabpanel" aria-labelledby="tab-markdown" hidden>
+        <div class="card markdown-controls">
+          <label class="toggle">
+            <input type="checkbox" id="toggle-only-diff" />
+            <span>Nur Abweichungen anzeigen</span>
+          </label>
+          <p class="legend">
+            <span class="legend-item"><span class="legend-swatch md-removed"></span> nur in der Referenz</span>
+            <span class="legend-item"><span class="legend-swatch md-added"></span> nur im generierten Dokument</span>
+            <span class="legend-item"><span class="legend-swatch md-changed"></span> geänderte Zeile</span>
+          </p>
+          <span class="markdown-summary" id="markdown-summary"></span>
+          <a id="markdown-download" class="link-button" download="generiert.md">Markdown herunterladen</a>
+        </div>
+        <div class="card markdown-diff">
+          <div class="markdown-head">
+            <span>Referenz-PDF</span>
+            <span>Generiertes PDF</span>
+          </div>
+          <div id="markdown-rows" class="markdown-rows"></div>
+        </div>
+      </section>
     </main>
 
     <script type="module" src="./app.js"></script>
