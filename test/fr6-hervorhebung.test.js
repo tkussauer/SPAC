@@ -131,3 +131,57 @@ test('FR6: Die UI enthält die rote Hervorhebung und rendert die Boxen', async (
   const built = await readFile(path.join(root, 'public/app.js'), 'utf8');
   assert.ok(built.includes('highlight'), 'Im Build fehlt die Hervorhebungslogik');
 });
+
+test('FR6: Die Markierungen lassen sich ein- und ausblenden', async () => {
+  const html = await readFile(path.join(root, 'src/client/index.html'), 'utf8');
+  const schalter = html.match(/<input[^>]*id="toggle-highlights"[^>]*>/s)?.[0];
+  assert.ok(schalter, 'Schalter zum Ein-/Ausblenden fehlt');
+  assert.match(schalter, /type="checkbox"/);
+  assert.match(schalter, /checked/, 'Markierungen sollen standardmäßig sichtbar sein');
+  assert.match(html, /Markierungen anzeigen/);
+
+  const css = await readFile(path.join(root, 'src/client/styles.css'), 'utf8');
+  assert.match(
+    css,
+    /\.viewer\.highlights-hidden \.highlight\s*\{[^}]*display:\s*none/s,
+    'CSS-Regel zum Ausblenden fehlt'
+  );
+
+  const client = await readFile(path.join(root, 'src/client/main.js'), 'utf8');
+  assert.match(client, /classList\.toggle\('highlights-hidden'/, 'Der Schalter wirkt nicht auf die Ansicht');
+  // Der Zustand bleibt erhalten (wie URL und Vorlagepfad, NFR3)
+  assert.match(client, /showHighlights: dom\.toggleHighlights\.checked/);
+  assert.match(client, /saved\.showHighlights/);
+});
+
+test('FR6: Die Bedeutung der Markierungsarten steht als Legende in der Oberfläche', async () => {
+  const html = await readFile(path.join(root, 'src/client/index.html'), 'utf8');
+  const legende = html.match(/<p class="legend">[\s\S]*?<\/p>/)?.[0];
+
+  assert.ok(legende, 'Legende fehlt');
+  assert.match(legende, /nur im generierten Dokument/i, 'Hinweis auf das markierte Dokument fehlt');
+  assert.match(legende, /weicht ab/, 'Erklärung für abweichenden Text fehlt');
+  assert.match(legende, /fehlt/, 'Erklärung für fehlenden Text fehlt');
+  assert.match(legende, /legend-swatch missing/, 'Farbmuster für fehlenden Text fehlt');
+  assert.equal((legende.match(/legend-swatch/g) ?? []).length, 2, 'Es werden zwei Farbmuster erwartet');
+});
+
+test('FR6: Die Seiten nutzen die volle Spaltenbreite', async () => {
+  const css = await readFile(path.join(root, 'src/client/styles.css'), 'utf8');
+  assert.match(
+    css,
+    /\.page-canvas-wrapper\s*\{[^}]*width:\s*100%/s,
+    'Der Seitenrahmen nutzt nicht die volle Breite'
+  );
+  assert.match(
+    css,
+    /\.page-canvas-wrapper canvas\s*\{[^}]*width:\s*100%/s,
+    'Das Canvas nutzt nicht die volle Breite'
+  );
+
+  const client = await readFile(path.join(root, 'src/client/main.js'), 'utf8');
+  // Die Zeichenbreite ergibt sich aus dem Layout, nicht aus einem festen Faktor.
+  assert.match(client, /wrapper\.clientWidth/, 'Die verfügbare Breite wird nicht gemessen');
+  assert.doesNotMatch(client, /RENDER_SCALE/, 'Es darf keine feste Renderskalierung mehr geben');
+  assert.match(client, /window\.addEventListener\('resize'/, 'Bei Größenänderung wird nicht neu gezeichnet');
+});

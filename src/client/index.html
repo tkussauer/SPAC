@@ -116,10 +116,25 @@
           <li>Abweichende Wörter (fehlend / abweichend): <strong id="summary-words"></strong></li>
           <li>Antwortzeit des Zielservice: <strong id="summary-duration"></strong></li>
         </ul>
+      </section>
+
+      <!-- Ansichtssteuerung: Markierungen ein-/ausblenden und Legende (FR6) -->
+      <section id="view-controls" class="card view-controls" hidden>
+        <label class="toggle">
+          <input type="checkbox" id="toggle-highlights" checked />
+          <span>Markierungen anzeigen</span>
+        </label>
+
         <p class="legend">
-          Markierungen erscheinen ausschließlich im generierten Dokument:
-          <span class="legend-item"><span class="legend-swatch"></span> weicht von der Referenz ab</span>
-          <span class="legend-item"><span class="legend-swatch missing"></span> fehlt gegenüber der Referenz</span>
+          <span class="legend-intro">Markierungen nur im generierten Dokument:</span>
+          <span class="legend-item">
+            <span class="legend-swatch"></span>
+            <span><strong>weicht ab</strong> – Text steht im generierten Dokument, unterscheidet sich aber von der Referenz</span>
+          </span>
+          <span class="legend-item">
+            <span class="legend-swatch missing"></span>
+            <span><strong>fehlt</strong> – Text steht in der Referenz und fehlt im generierten Dokument (markiert an der Referenzposition)</span>
+          </span>
         </p>
       </section>
 

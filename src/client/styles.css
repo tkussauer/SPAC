@@ -215,20 +215,53 @@ button.secondary {
   color: var(--diff);
 }
 
+.view-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.75rem 2rem;
+  padding: 0.9rem 1.25rem;
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.toggle input {
+  width: 1rem;
+  height: 1rem;
+  cursor: pointer;
+}
+
 .legend {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.35rem 1rem;
+  gap: 0.35rem 1.25rem;
   font-size: 0.85rem;
   color: var(--muted);
-  margin: 0.75rem 0 0;
+  margin: 0;
+  flex: 1 1 24rem;
+}
+
+.legend-intro {
+  font-weight: 600;
 }
 
 .legend-item {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
+}
+
+.legend-item strong {
+  color: var(--fg);
 }
 
 .legend-swatch {
@@ -297,19 +330,25 @@ button.secondary {
   color: var(--muted);
 }
 
+/* Die Seite nutzt die volle Spaltenbreite – kein ungenutzter Rand zwischen den Dokumenten. */
 .page-canvas-wrapper {
   position: relative;
-  display: inline-block;
+  display: block;
+  width: 100%;
   border: 1px solid var(--border);
   background: #fff;
-  max-width: 100%;
   overflow: hidden;
 }
 
 .page-canvas-wrapper canvas {
   display: block;
-  max-width: 100%;
+  width: 100%;
   height: auto;
+}
+
+/* Markierungen ausblendbar (Schalter in der Ansichtssteuerung) */
+.viewer.highlights-hidden .highlight {
+  display: none;
 }
 
 /* FR6: farbliche Hervorhebung der Abweichungen – nur im generierten Dokument */

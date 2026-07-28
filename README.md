@@ -70,6 +70,15 @@ umgerechnet). Verschiebt sich der Text durch die fehlende Stelle, kann die gestr
 Markierung daher über nachfolgendem Inhalt liegen – der Tooltip nennt den konkret fehlenden
 Text.
 
+Über dem Vergleich liegt eine Leiste mit dem Schalter **„Markierungen anzeigen"** und der
+Legende zu beiden Markierungsarten. Der Schalter blendet alle Markierungen aus, ohne die
+Seiten neu zu zeichnen – praktisch, um kurz das unverfälschte Dokument zu sehen. Der Zustand
+bleibt wie die übrigen Eingaben erhalten.
+
+Die Seiten werden auf die tatsächlich verfügbare Spaltenbreite gezeichnet (in Gerätepixeln,
+daher scharf) und nach einer Größenänderung des Fensters neu gerendert. Zwischen den beiden
+Dokumenten bleibt dadurch nur der Spaltenabstand.
+
 - **Vergleich generieren** – sendet den POST-Request, zeigt das erzeugte PDF und den Vergleich an.
 - **Refresh** – wiederholt denselben POST-Aufruf mit den aktuell eingetragenen Werten und
   aktualisiert Ergebnis und Markierungen (z. B. nachdem die Vorlage auf dem Server geändert wurde).

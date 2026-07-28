@@ -3,7 +3,12 @@ import * as pdfjsLib from 'pdfjs-dist/build/pdf.mjs';
 pdfjsLib.GlobalWorkerOptions.workerSrc = './pdf.worker.min.mjs';
 
 const STORAGE_KEY = 'spac.pdfcompare.settings.v1';
-const RENDER_SCALE = 1.2;
+/** Mindestbreite einer gezeichneten Seite, falls das Layout noch keine Breite liefert. */
+const MIN_PAGE_WIDTH = 280;
+/** Obergrenze für die Bitmap-Auflösung (begrenzt den Speicherbedarf). */
+const MAX_PIXEL_RATIO = 2;
+/** Wartezeit, bevor nach einer Fenstergrößenänderung neu gezeichnet wird. */
+const RESIZE_DELAY_MS = 250;
 
 const el = (id) => document.getElementById(id);
 
@@ -15,6 +20,8 @@ const dom = {
   templatePath: el('template-path'),
   contentType: el('content-type'),
   advanced: el('advanced'),
+  viewControls: el('view-controls'),
+  toggleHighlights: el('toggle-highlights'),
   diagnostics: el('diagnostics'),
   diagnosticsContent: el('diagnostics-content'),
   generateButton: el('generate-button'),
@@ -40,6 +47,8 @@ const state = {
   referenceId: null,
   referenceFileName: null,
   busy: false,
+  /** Zeichenaufträge der aktuellen Ansicht – für das Neuzeichnen nach Größenänderung. */
+  renderJobs: [],
 };
 
 // ---------------------------------------------------------------- Persistenz
@@ -55,6 +64,7 @@ function loadSettings() {
       dom.contentType.value = saved.contentType;
       if (saved.contentType !== dom.contentType.defaultValue) dom.advanced?.setAttribute('open', '');
     }
+    if (typeof saved.showHighlights === 'boolean') dom.toggleHighlights.checked = saved.showHighlights;
   } catch {
     /* Einstellungen sind optional – Fehler hier dürfen die App nicht blockieren. */
   }
@@ -68,6 +78,7 @@ function saveSettings() {
         targetUrl: dom.targetUrl.value,
         templatePath: dom.templatePath.value,
         contentType: dom.contentType.value,
+        showHighlights: dom.toggleHighlights.checked,
       })
     );
   } catch {
@@ -291,7 +302,9 @@ async function renderResult(result) {
 
   const comparison = result.comparison;
   if (!comparison) {
+    // Ohne Referenz-PDF gibt es nichts zu markieren – nur das erzeugte PDF anzeigen.
     dom.summary.hidden = true;
+    dom.viewControls.hidden = true;
     dom.viewer.hidden = false;
     dom.viewer.replaceChildren();
     await renderSinglePdf(result.generatedUrl);
@@ -322,27 +335,33 @@ async function loadPdf(url) {
 
 async function renderSinglePdf(url) {
   const doc = await loadPdf(url);
+  const jobs = [];
   for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber += 1) {
     const row = document.createElement('article');
     row.className = 'page-row';
     row.innerHTML = `<header><h3>Seite ${pageNumber}</h3></header>`;
     const panes = document.createElement('div');
     panes.className = 'panes';
-    panes.append(await buildPane('Generiertes PDF', doc, pageNumber, []));
+    const pane = createPane('Generiertes PDF', doc, pageNumber, [], null);
+    panes.append(pane.element);
     row.append(panes);
     dom.viewer.append(row);
+    if (pane.job) jobs.push(pane.job);
   }
+  await runRenderJobs(jobs);
 }
 
 async function renderPages(result, comparison) {
   dom.viewer.hidden = false;
   dom.viewer.replaceChildren();
+  dom.viewControls.hidden = false;
 
   const [referenceDoc, generatedDoc] = await Promise.all([
     result.referenceUrl ? loadPdf(result.referenceUrl) : null,
     loadPdf(result.generatedUrl),
   ]);
 
+  const jobs = [];
   for (const page of comparison.pages) {
     const row = document.createElement('article');
     row.className = 'page-row';
@@ -358,16 +377,55 @@ async function renderPages(result, comparison) {
 
     const panes = document.createElement('div');
     panes.className = 'panes';
-    panes.append(
+
+    // Die Referenz wird ohne Markierungen dargestellt.
+    const referencePane =
       page.referencePresent && referenceDoc
-        ? await buildPane('Referenz-PDF', referenceDoc, page.pageNumber, page.reference?.highlights ?? [], page.reference)
-        : missingPane('Referenz-PDF', 'Diese Seite existiert nur im generierten PDF.'),
-      page.generatedPresent
-        ? await buildPane('Generiertes PDF', generatedDoc, page.pageNumber, page.generated?.highlights ?? [], page.generated)
-        : missingPane('Generiertes PDF', 'Diese Seite fehlt im generierten PDF.')
-    );
+        ? createPane('Referenz-PDF', referenceDoc, page.pageNumber, [], page.reference)
+        : { element: missingPane('Referenz-PDF', 'Diese Seite existiert nur im generierten PDF.') };
+    const generatedPane = page.generatedPresent
+      ? createPane('Generiertes PDF', generatedDoc, page.pageNumber, page.generated?.highlights ?? [], page.generated)
+      : { element: missingPane('Generiertes PDF', 'Diese Seite fehlt im generierten PDF.') };
+
+    panes.append(referencePane.element, generatedPane.element);
     row.append(panes);
+    // Erst einhängen, dann rendern – die Zeichenbreite ergibt sich aus dem Layout.
     dom.viewer.append(row);
+
+    for (const pane of [referencePane, generatedPane]) {
+      if (pane.job) jobs.push(pane.job);
+    }
+  }
+
+  await runRenderJobs(jobs);
+}
+
+/** Rendert die Seiten nacheinander (begrenzt den Speicherbedarf bei vielen Seiten). */
+async function runRenderJobs(jobs) {
+  state.renderJobs = jobs;
+  for (const job of jobs) {
+    await job.render();
+  }
+}
+
+/** Blendet die Markierungen ein oder aus, ohne die Seiten neu zu zeichnen. */
+function applyHighlightVisibility() {
+  dom.viewer.classList.toggle('highlights-hidden', !dom.toggleHighlights.checked);
+}
+
+/** Zeichnet die Seiten neu, wenn sich die verfügbare Breite spürbar geändert hat. */
+async function redrawIfWidthChanged() {
+  const betroffen = state.renderJobs.filter((job) => {
+    const gezeichnet = Number(job.wrapper.dataset.renderedWidth || 0);
+    return job.wrapper.isConnected && Math.abs(job.wrapper.clientWidth - gezeichnet) > 20;
+  });
+  if (betroffen.length === 0) return;
+
+  for (const job of betroffen) {
+    job.wrapper._renderTask?.cancel?.();
+  }
+  for (const job of betroffen) {
+    await job.render();
   }
 }
 
@@ -376,7 +434,10 @@ function describeStatus(page) {
   if (page.status === 'only-in-generated') return 'nur im generierten PDF';
   if (page.identical) return 'identisch';
   const { removedWords, addedWords } = page.counts;
-  return `abweichend (${removedWords} fehlend / ${addedWords} zusätzlich)`;
+  const teile = [];
+  if (addedWords > 0) teile.push(`${addedWords} weicht ab`);
+  if (removedWords > 0) teile.push(`${removedWords} fehlt`);
+  return `abweichend (${teile.join(', ')})`;
 }
 
 function missingPane(title, message) {
@@ -392,7 +453,12 @@ function missingPane(title, message) {
   return pane;
 }
 
-async function buildPane(title, doc, pageNumber, highlights, geometry = null) {
+/**
+ * Erzeugt das Gerüst einer Seitenansicht. Gezeichnet wird erst über `job.render()`,
+ * wenn das Element im DOM hängt – dann steht die verfügbare Breite fest und die
+ * Seite kann sie voll ausnutzen (kein ungenutzter Rand zwischen den Dokumenten).
+ */
+function createPane(title, doc, pageNumber, highlights, geometry = null) {
   const pane = document.createElement('div');
   pane.className = 'pane';
 
@@ -401,34 +467,53 @@ async function buildPane(title, doc, pageNumber, highlights, geometry = null) {
   heading.textContent = `${title}${highlights.length ? ` – ${highlights.length} markierte Stelle(n)` : ''}`;
   pane.append(heading);
 
-  const wrapper = document.createElement('div');
-  wrapper.className = 'page-canvas-wrapper';
-  pane.append(wrapper);
-
   if (pageNumber > doc.numPages) {
-    wrapper.remove();
     const box = document.createElement('div');
     box.className = 'pane-missing';
     box.textContent = 'Seite nicht vorhanden.';
     pane.append(box);
-    return pane;
+    return { element: pane, job: null };
   }
 
+  const wrapper = document.createElement('div');
+  wrapper.className = 'page-canvas-wrapper';
+  pane.append(wrapper);
+
+  return {
+    element: pane,
+    job: { wrapper, doc, pageNumber, highlights, geometry, render: () => renderPageInto(wrapper, doc, pageNumber, highlights, geometry) },
+  };
+}
+
+/** Zeichnet eine PDF-Seite in der Breite aus, die im Layout tatsächlich zur Verfügung steht. */
+async function renderPageInto(wrapper, doc, pageNumber, highlights, geometry) {
   const page = await doc.getPage(pageNumber);
-  const viewport = page.getViewport({ scale: RENDER_SCALE });
+  const unscaled = page.getViewport({ scale: 1 });
+
+  const cssWidth = Math.max(wrapper.clientWidth || 0, MIN_PAGE_WIDTH);
+  // Bitmap in Gerätepixeln zeichnen, damit die Darstellung scharf bleibt.
+  const pixelRatio = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
+  const viewport = page.getViewport({ scale: (cssWidth / unscaled.width) * pixelRatio });
+
   const canvas = document.createElement('canvas');
   canvas.width = Math.floor(viewport.width);
   canvas.height = Math.floor(viewport.height);
-  wrapper.style.width = `${Math.floor(viewport.width)}px`;
-  wrapper.append(canvas);
+  wrapper.replaceChildren(canvas);
+  wrapper.dataset.renderedWidth = String(cssWidth);
 
-  await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+  const task = page.render({ canvasContext: canvas.getContext('2d'), viewport });
+  wrapper._renderTask = task;
+  try {
+    await task.promise;
+  } catch (err) {
+    if (err?.name === 'RenderingCancelledException') return;
+    throw err;
+  }
 
-  // FR6: Abweichungen als rote Overlays über dem Seiteninhalt.
-  // Prozentangaben, damit die Markierungen mitskalieren, wenn das Canvas
-  // per CSS (max-width) an die Spaltenbreite angepasst wird.
-  const baseWidth = geometry?.width || viewport.width / RENDER_SCALE;
-  const baseHeight = geometry?.height || viewport.height / RENDER_SCALE;
+  // FR6: Abweichungen als Overlays über dem Seiteninhalt.
+  // Prozentangaben, damit die Markierungen jeder Skalierung des Canvas folgen.
+  const baseWidth = geometry?.width || unscaled.width;
+  const baseHeight = geometry?.height || unscaled.height;
   for (const box of highlights) {
     const marker = document.createElement('div');
     // "missing" = Text der Referenz, der hier fehlt -> gestrichelt dargestellt
@@ -443,8 +528,6 @@ async function buildPane(title, doc, pageNumber, highlights, geometry = null) {
         : `Weicht von der Referenz ab: ${box.text ?? ''}`.trim();
     wrapper.append(marker);
   }
-
-  return pane;
 }
 
 // ------------------------------------------------------------------- Events
@@ -491,6 +574,20 @@ function wireUp() {
     dom.refreshButton.disabled = !canRefresh();
   });
   dom.contentType.addEventListener('input', saveSettings);
+
+  // Markierungen ein-/ausblenden (Zustand bleibt erhalten)
+  dom.toggleHighlights.addEventListener('change', () => {
+    applyHighlightVisibility();
+    saveSettings();
+  });
+  applyHighlightVisibility();
+
+  // Nach einer Größenänderung des Fensters neu zeichnen, damit die Seiten scharf bleiben.
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(redrawIfWidthChanged, RESIZE_DELAY_MS);
+  });
 }
 
 if (typeof document !== 'undefined') {
