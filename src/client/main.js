@@ -81,9 +81,14 @@ function setStatus(text) {
   dom.status.textContent = text || '';
 }
 
-function showError(message, details) {
-  dom.errorMessage.textContent = message;
-  if (details) {
+function showError(message, details, logFile = null) {
+  dom.errorMessage.textContent = logFile ? `${message}\n\nVollständiges Protokoll: ${logFile}` : message;
+
+  // Bei Fehlern des Zielservice den gesendeten Body und die Antwort mit anzeigen.
+  if (details?.request) {
+    renderExchange(details.request, details.response);
+    dom.errorDetails.hidden = true;
+  } else if (details) {
     dom.errorDetails.textContent = typeof details === 'string' ? details : JSON.stringify(details, null, 2);
     dom.errorDetails.hidden = false;
   } else {
@@ -111,11 +116,17 @@ function canRefresh() {
 async function readErrorFromResponse(response) {
   try {
     const data = await response.json();
-    if (data?.error?.message) return { message: data.error.message, details: data.error.details ?? null };
+    if (data?.error?.message) {
+      return {
+        message: data.error.message,
+        details: data.error.details ?? null,
+        logFile: data.error.logFile ?? null,
+      };
+    }
   } catch {
     /* keine JSON-Antwort */
   }
-  return { message: `Serverfehler (HTTP ${response.status}).`, details: null };
+  return { message: `Serverfehler (HTTP ${response.status}).`, details: null, logFile: null };
 }
 
 // ------------------------------------------------------------------ Dateien
@@ -201,8 +212,8 @@ async function runComparison({ reason = 'generate' } = {}) {
     });
 
     if (!response.ok) {
-      const { message, details } = await readErrorFromResponse(response);
-      showError(message, details);
+      const { message, details, logFile } = await readErrorFromResponse(response);
+      showError(message, details, logFile);
       setStatus('Fehlgeschlagen.');
       return;
     }
@@ -223,19 +234,50 @@ async function runComparison({ reason = 'generate' } = {}) {
 
 // --------------------------------------------------------------- Darstellung
 
-/** Zeigt den exakt gesendeten Request an – hilft beim Eingrenzen von Endpoint-Problemen. */
-function renderDiagnostics(result) {
-  const headerLines = Object.entries(result.request.headers ?? {}).map(([name, value]) => `${name}: ${value}`);
-  dom.diagnosticsContent.textContent = [
-    `POST ${result.request.targetUrl}`,
-    ...headerLines,
+function formatHeaders(headers) {
+  return Object.entries(headers ?? {}).map(([name, value]) => `${name}: ${value}`);
+}
+
+/**
+ * Zeigt den exakt gesendeten Request und die Antwort an – hilft beim Eingrenzen
+ * von Endpoint-Problemen. Wird bei Erfolg und bei Fehlern verwendet.
+ */
+function renderExchange(request, response) {
+  const lines = [
+    '--- GESENDETER REQUEST ---',
+    `POST ${request.targetUrl}`,
+    ...formatHeaders(request.headers),
     '',
-    result.request.body,
-    '',
-    `--- Antwort: HTTP ${result.response.status}, ${result.response.contentType ?? 'ohne Content-Type'}, ` +
-      `${result.response.bytes} Bytes in ${result.response.durationMs} ms`,
-  ].join('\n');
+    `--- GESENDETER BODY (${request.bytes ?? 0} Bytes, Kodierung ${request.encoding ?? 'utf8'}) ---`,
+    request.body ?? '',
+  ];
+
+  if (response) {
+    lines.push(
+      '',
+      `--- ANTWORT: HTTP ${response.status}${response.statusMessage ? ` ${response.statusMessage}` : ''} ---`,
+      ...formatHeaders(response.headers)
+    );
+    if (typeof response.body === 'string') {
+      lines.push('', `--- ANTWORT-BODY (${response.bytes ?? 0} Bytes) ---`, response.body);
+    }
+  } else {
+    lines.push('', '--- ANTWORT ---', 'Keine Antwort erhalten (Verbindungs- oder Zeitfehler).');
+  }
+
+  dom.diagnosticsContent.textContent = lines.join('\n');
   dom.diagnostics.hidden = false;
+  dom.diagnostics.setAttribute('open', '');
+}
+
+/** Diagnose nach einem erfolgreichen Durchlauf (Antwort ist das PDF). */
+function renderDiagnostics(result) {
+  renderExchange(result.request, {
+    status: result.response.status,
+    headers: { 'content-type': result.response.contentType ?? '(ohne)' },
+    bytes: result.response.bytes,
+  });
+  dom.diagnostics.removeAttribute('open');
 }
 
 async function renderResult(result) {

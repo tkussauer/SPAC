@@ -46,6 +46,14 @@ export function encodingFromContentType(contentType) {
  *
  * Alle Fehler werden in verständliche AppErrors übersetzt (NFR2).
  */
+/** Größe der Request-/Response-Auszüge, die an die Oberfläche übergeben werden. */
+const UI_PREVIEW_LIMIT = 20_000;
+
+function shorten(text, limit = UI_PREVIEW_LIMIT) {
+  const value = String(text ?? '');
+  return value.length <= limit ? value : `${value.slice(0, limit)}\n… (gekürzt, insgesamt ${value.length} Zeichen)`;
+}
+
 export async function postToTarget({
   targetUrl,
   body,
@@ -63,6 +71,43 @@ export async function postToTarget({
     'Content-Length': String(payload.length),
     Accept: 'application/pdf, */*',
     ...extraHeaders,
+  };
+
+  /** Vollständige Angaben zum gesendeten Request – für Log und Fehleranzeige. */
+  const requestInfo = {
+    method: 'POST',
+    targetUrl,
+    headers,
+    body: payload.toString(encoding),
+    bodyBuffer: payload,
+    bytes: payload.length,
+    encoding,
+  };
+
+  /** Hängt Request- und Antwortdaten an den Fehler, damit sie geloggt und angezeigt werden können. */
+  const withDiagnostics = (appError, response = null) => {
+    appError.exchange = { targetUrl, request: requestInfo, response };
+    appError.details = {
+      ...(appError.details ?? {}),
+      request: {
+        method: 'POST',
+        targetUrl,
+        headers,
+        body: shorten(requestInfo.body),
+        bytes: requestInfo.bytes,
+        encoding,
+      },
+      response: response
+        ? {
+            status: response.status,
+            statusMessage: response.statusMessage,
+            headers: response.headers,
+            body: shorten(response.body),
+            bytes: response.bytes,
+          }
+        : null,
+    };
+    return appError;
   };
 
   const client = transport || (url.protocol === 'https:' ? https : http);
@@ -104,13 +149,15 @@ export async function postToTarget({
     });
 
     request.on('error', (err) => {
-      if (err instanceof AppError) return reject(err);
+      if (err instanceof AppError) return reject(withDiagnostics(err));
       reject(
-        new AppError(
-          'TARGET_UNREACHABLE',
-          `Die URL ${targetUrl} ist nicht erreichbar (${err?.code || err?.message || 'unbekannter Netzwerkfehler'}). ` +
-            'Bitte URL, Netzwerk und ob der Zielservice läuft prüfen.',
-          { status: 502, cause: err }
+        withDiagnostics(
+          new AppError(
+            'TARGET_UNREACHABLE',
+            `Die URL ${targetUrl} ist nicht erreichbar (${err?.code || err?.message || 'unbekannter Netzwerkfehler'}). ` +
+              'Bitte URL, Netzwerk und ob der Zielservice läuft prüfen.',
+            { status: 502, cause: err }
+          )
         )
       );
     });
@@ -120,18 +167,33 @@ export async function postToTarget({
   });
 
   const responseContentType = responseHeaders?.['content-type'] || null;
+  const responseInfo = {
+    status,
+    statusMessage,
+    headers: responseHeaders,
+    body: buffer.toString('utf8'),
+    bytes: buffer.length,
+  };
 
   if (status < 200 || status >= 300) {
-    const preview = buffer.subarray(0, 300).toString('utf8').replace(/\s+/g, ' ').trim();
-    throw new AppError(
-      'TARGET_STATUS',
-      `Der Zielservice hat mit HTTP ${status}${statusMessage ? ` (${statusMessage})` : ''} geantwortet.` +
-        (preview ? ` Meldung: "${preview}"` : ''),
-      { status: 502, details: { status, preview } }
+    const preview = buffer.subarray(0, 500).toString('utf8').replace(/\s+/g, ' ').trim();
+    throw withDiagnostics(
+      new AppError(
+        'TARGET_STATUS',
+        `Der Zielservice hat mit HTTP ${status}${statusMessage ? ` (${statusMessage})` : ''} geantwortet.` +
+          (preview ? ` Meldung: "${preview}"` : ''),
+        { status: 502, details: { status, preview } }
+      ),
+      responseInfo
     );
   }
 
-  const pdf = assertPdf(buffer, { source: 'Die Antwort des Zielservice', contentType: responseContentType });
+  let pdf;
+  try {
+    pdf = assertPdf(buffer, { source: 'Die Antwort des Zielservice', contentType: responseContentType });
+  } catch (err) {
+    throw withDiagnostics(err, responseInfo);
+  }
 
   return {
     pdf,
@@ -142,5 +204,6 @@ export async function postToTarget({
     requestHeaders: headers,
     requestBytes: payload.length,
     requestEncoding: encoding,
+    exchange: { targetUrl, request: requestInfo, response: { ...responseInfo, body: '<PDF-Daten>' } },
   };
 }

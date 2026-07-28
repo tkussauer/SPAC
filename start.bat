@@ -45,6 +45,7 @@ if errorlevel 1 (
 echo.
 echo   Server startet unter %APP_URL%
 echo   Der Browser oeffnet sich gleich automatisch.
+echo   Fehlerprotokoll (inkl. gesendetem Body): %~dp0logs\spac.log
 echo   Zum Beenden dieses Fenster schliessen oder Strg+C druecken.
 echo.
 

@@ -3,6 +3,7 @@ import net from 'node:net';
 import PDFDocument from 'pdfkit';
 import { createApp } from '../../src/server/app.js';
 import { PdfStore } from '../../src/server/lib/store.js';
+import { Logger } from '../../src/server/lib/logger.js';
 
 /**
  * Erzeugt ein PDF im Speicher.
@@ -116,9 +117,13 @@ export async function startRawTarget({ responseBody = Buffer.from('%PDF-1.4\n%%E
   return { ...handle, captured };
 }
 
-/** Startet die Anwendung selbst (echter HTTP-Server). */
+/** Startet die Anwendung selbst (echter HTTP-Server). Standardmäßig ohne Logausgabe. */
 export async function startApp(options = {}) {
-  const app = createApp({ store: new PdfStore(), ...options });
+  const app = createApp({
+    store: new PdfStore(),
+    log: new Logger({ file: null, toConsole: false }),
+    ...options,
+  });
   const server = http.createServer(app);
   const handle = await listen(server);
   return { ...handle, app };

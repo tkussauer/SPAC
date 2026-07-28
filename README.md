@@ -79,6 +79,7 @@ src/server/
   lib/diff.js             Wort-Diff (LCS)
   lib/comparePdfs.js      seitenweiser Vergleich + Markierungsboxen (FR5/FR6)
   lib/validate.js         Eingabe- und PDF-Prüfungen (NFR2)
+  lib/logger.js           Protokoll nach logs/spac.log (Body + Antwort bei Fehlern)
   lib/store.js            In-Memory-Ablage der PDFs
 src/client/               Oberfläche (HTML/CSS/JS, pdf.js-Anzeige)
 test/                     automatisierte Tests zu FR1–FR8 und den NFRs
@@ -217,6 +218,9 @@ die Zeilenstruktur des Bodys aus FR3 garantiert eingehalten wird.
 | `SPAC_POST_CONTENT_TYPE` | `text/plain; charset=utf-8` | Content-Type des POST-Requests |
 | `SPAC_POST_TIMEOUT_MS` | `120000` | Zeitlimit für den Zielservice |
 | `SPAC_MAX_UPLOAD` | `75mb` | maximale Größe von Upload/Antwort |
+| `SPAC_LOG_FILE` | `logs/spac.log` | Pfad der Logdatei |
+| `SPAC_LOG_BODY` | – | `1` protokolliert auch erfolgreiche Aufrufe mit vollem Body |
+| `SPAC_LOG_MAX_BODY` | `100000` | maximale Zeichenzahl je Body im Log |
 
 ---
 
@@ -236,6 +240,7 @@ sind keine Binärdateien im Repository nötig und es besteht keine Netzwerkabhä
 | FR2 POST-Request an die Ziel-URL | `test/fr2-fr3-post.test.js` |
 | FR3 Aufbau des POST-Bodys | `test/fr2-fr3-post.test.js` |
 | FR3 Rohtext-Übertragung (Byte-Ebene, Header, charset) | `test/fr3-raw-body.test.js` |
+| Protokollierung von Request-Body und Antwort im Fehlerfall | `test/logging.test.js` |
 | FR4 PDF-Response anzeigen/speichern | `test/fr4-pdf-response.test.js` |
 | FR5 seitenweiser Vergleich | `test/fr5-vergleich.test.js` |
 | FR6 farbliche Hervorhebung | `test/fr6-hervorhebung.test.js` |
@@ -264,10 +269,63 @@ Schlägt nur der Vergleich fehl, bleibt das generierte PDF trotzdem sicht- und h
 
 ## Wenn der Zielendpoint den Request ablehnt
 
-Unter dem Ergebnis klappt der Bereich **„Gesendeter Request (Diagnose)"** auf. Er zeigt
-den vollständigen Request, so wie er über die Leitung ging: Ziel-URL, alle gesendeten Header
-und den kompletten Body – sowie Status, Content-Type und Größe der Antwort. Damit lässt sich
-direkt mit dem Betreiber des Endpoints abgleichen, was erwartet wird.
+### Logdatei: `logs/spac.log`
+
+**Bei jedem Fehler** wird der komplette Austausch in `logs/spac.log` (neben `start.bat`)
+geschrieben und zusätzlich im Konsolenfenster ausgegeben: gesendete Header, der **vollständige
+gesendete Body**, ein Hexdump der ersten Bytes sowie Status, Header und Body der Antwort des
+Zielservice. Der Pfad zur Logdatei steht auch in der Fehlermeldung in der Oberfläche.
+
+```
+==============================================================================
+[2026-07-28T12:40:53.634Z] FEHLER: POST http://server:8080/generate
+Fehlercode: TARGET_STATUS
+Meldung:    Der Zielservice hat mit HTTP 415 (Unsupported Media Type) geantwortet. …
+
+--- GESENDETER REQUEST ---
+POST http://server:8080/generate
+Content-Type: text/plain; charset=utf-8
+Content-Length: 86
+Accept: application/pdf, */*
+
+--- GESENDETER BODY (86 Bytes, Kodierung utf8) ---
+C:\Vorlagen\rechnung.tpl
+
+<rechnung nummer="4711">
+  <betrag>100</betrag>
+</rechnung>
+
+--- BODY-ANFANG ALS HEX ---
+0000  43 3a 5c 56 6f 72 6c 61 67 65 6e 5c 72 65 63 68  C:\Vorlagen\rech
+0010  6e 75 6e 67 2e 74 70 6c 0a 0a 3c 72 65 63 68 6e  nung.tpl..<rechn
+
+--- ANTWORT: HTTP 415 Unsupported Media Type ---
+content-type: text/plain;charset=utf-8
+content-length: 48
+
+--- ANTWORT-BODY (48 Bytes) ---
+Unsupported Media Type: erwartet application/xml
+==============================================================================
+```
+
+Der Hexdump zeigt die tatsächlichen Bytes – daran lassen sich Kodierungsprobleme, ein
+unerwartetes BOM oder falsche Zeilenenden zweifelsfrei erkennen.
+
+**Auch erfolgreiche Aufrufe mitloggen** (mit vollem Body):
+
+```bat
+set SPAC_LOG_BODY=1
+start.bat
+```
+
+Ohne diesen Schalter wird bei Erfolg nur eine Zeile geschrieben
+(`POST … -> HTTP 200, 12345 Bytes PDF in 240 ms`).
+
+### Diagnose in der Oberfläche
+
+Dieselben Angaben stehen im aufklappbaren Bereich **„Gesendeter Request (Diagnose)"** unter
+dem Ergebnis – im Fehlerfall öffnet er sich automatisch und enthält zusätzlich die
+vollständige Antwort des Zielservice.
 
 Typische Stellschrauben:
 

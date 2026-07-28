@@ -7,6 +7,7 @@ import { buildPostBody } from './lib/buildPostBody.js';
 import { comparePdfs } from './lib/comparePdfs.js';
 import { postToTarget, DEFAULT_CONTENT_TYPE, DEFAULT_TIMEOUT_MS } from './lib/postClient.js';
 import { PdfStore } from './lib/store.js';
+import { logger, DEFAULT_LOG_FILE } from './lib/logger.js';
 import { assertPdf, validateTargetUrl, validateTemplatePath, validateXmlContent } from './lib/validate.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -20,7 +21,13 @@ const BODY_PREVIEW_LIMIT = 20_000;
  * Baut die Express-App. `transport` ist injizierbar (node:http-kompatibel),
  * damit Tests den Zielservice bei Bedarf mocken können.
  */
-export function createApp({ transport = null, store = new PdfStore(), publicDir = PUBLIC_DIR } = {}) {
+export function createApp({
+  transport = null,
+  store = new PdfStore(),
+  publicDir = PUBLIC_DIR,
+  log = logger,
+  logBodies = process.env.SPAC_LOG_BODY === '1',
+} = {}) {
   const app = express();
   app.disable('x-powered-by');
 
@@ -40,6 +47,8 @@ export function createApp({ transport = null, store = new PdfStore(), publicDir 
       postTimeoutMs: DEFAULT_TIMEOUT_MS,
       diffMethod: 'text-extraction',
       templatePathValidation: 'non-empty-string',
+      logFile: log.file || DEFAULT_LOG_FILE,
+      logBodies,
     });
   });
 
@@ -85,12 +94,35 @@ export function createApp({ transport = null, store = new PdfStore(), publicDir 
 
       const body = buildPostBody({ templatePath: template, xmlContent });
 
-      const result = await postToTarget({
-        targetUrl: url,
-        body,
-        contentType: typeof contentType === 'string' && contentType.trim() ? contentType.trim() : undefined,
-        transport,
-      });
+      let result;
+      try {
+        result = await postToTarget({
+          targetUrl: url,
+          body,
+          contentType: typeof contentType === 'string' && contentType.trim() ? contentType.trim() : undefined,
+          transport,
+        });
+      } catch (err) {
+        // Bei einem Fehler den kompletten Austausch protokollieren – inklusive
+        // gesendetem Body und Antwort des Zielservice.
+        log.logExchange({
+          level: 'FEHLER',
+          targetUrl: url,
+          error: err,
+          request: err.exchange?.request ?? { body, bytes: Buffer.byteLength(body, 'utf8') },
+          response: err.exchange?.response ?? null,
+        });
+        throw err;
+      }
+
+      if (logBodies) {
+        log.logExchange({ level: 'ERFOLG', targetUrl: url, ...result.exchange });
+      } else {
+        log.info(
+          `POST ${url} -> HTTP ${result.status}, ${result.pdf.length} Bytes PDF in ${result.durationMs} ms ` +
+            `(gesendet: ${result.requestBytes} Bytes als ${result.requestContentType})`
+        );
+      }
 
       const generatedId = store.put(result.pdf, { kind: 'generated', fileName: 'vergleichsdokument.pdf' });
 
@@ -103,6 +135,7 @@ export function createApp({ transport = null, store = new PdfStore(), publicDir 
           comparisonError = isAppError(err)
             ? err.toJSON().error
             : { code: 'COMPARE_FAILED', message: `Vergleich fehlgeschlagen: ${err.message}` };
+          log.info(`FEHLER beim PDF-Vergleich: ${comparisonError.code} – ${comparisonError.message}`);
         }
       }
 
@@ -162,7 +195,9 @@ export function createApp({ transport = null, store = new PdfStore(), publicDir 
   // eslint-disable-next-line no-unused-vars
   app.use((err, _req, res, _next) => {
     if (isAppError(err)) {
-      return res.status(err.status).json(err.toJSON());
+      const payload = err.toJSON();
+      payload.error.logFile = log.file || DEFAULT_LOG_FILE;
+      return res.status(err.status).json(payload);
     }
     if (err?.type === 'entity.too.large') {
       return res.status(413).json({
