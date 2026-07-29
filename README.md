@@ -70,6 +70,28 @@ umgerechnet). Verschiebt sich der Text durch die fehlende Stelle, kann die gestr
 Markierung daher über nachfolgendem Inhalt liegen – der Tooltip nennt den konkret fehlenden
 Text.
 
+### Abweichend kodierte Sonderzeichen
+
+PDFs kodieren Sonderzeichen nicht immer als ein Textelement. Wird ein Umlaut z. B. aus einer
+anderen Schrift gesetzt, liefert die Textextraktion `Selbstst`, `ä` und
+`ndige(r)` als drei Elemente – ohne Behandlung entstünde daraus
+"Selbstst ä ndige(r)" und damit eine gemeldete Abweichung, obwohl der Text identisch ist.
+
+Die Anwendung fängt das auf drei Ebenen ab:
+
+1. **Wortteile zusammenführen** – direkt aneinander anschließende Textelemente derselben Zeile
+   werden wieder zu einem Wort verbunden. Die Grenze liegt bei 0,2 em Abstand; ein echtes
+   Leerzeichen ist mit 0,25–0,33 em breiter und wird daher nicht zusammengezogen.
+2. **Schreibweisen vereinheitlichen** – Unicode-Normalisierung (zerlegtes "a"+Trema gilt als
+   "ä"), Entfernen unsichtbarer Steuerzeichen (weiches Trennzeichen, Zero-Width-Zeichen) sowie
+   Vereinheitlichen von Leerzeichen-, Bindestrich- und Anführungszeichen-Varianten.
+3. **Reine Trennungsunterschiede erkennen** – ergeben mehrere Wörter zusammengesetzt denselben
+   Text wie auf der Gegenseite, gilt das nicht als Abweichung. Das greift auch dort, wo die
+   Zusammenführung nicht möglich war, und ebenso im Markdown-Vergleich.
+
+Echte Unterschiede bleiben davon unberührt: Ein anderer Umlaut ("ö" statt "ä") oder ein
+anderer Betrag wird weiterhin markiert.
+
 Über dem Vergleich liegt eine Leiste mit dem Schalter **„Markierungen anzeigen"** und der
 Legende zu beiden Markierungsarten. Der Schalter blendet alle Markierungen aus, ohne die
 Seiten neu zu zeichnen – praktisch, um kurz das unverfälschte Dokument zu sehen. Der Zustand
@@ -354,6 +376,7 @@ sind keine Binärdateien im Repository nötig und es besteht keine Netzwerkabhä
 | Protokollierung von Request-Body und Antwort im Fehlerfall | `test/logging.test.js` |
 | Zusätzliche Header und cURL-Reproduktion | `test/extra-headers.test.js` |
 | Aufzeichnung und Vergleich einer Fremd-Anfrage (Postman) | `test/capture-compare.test.js` |
+| Abweichend kodierte Sonderzeichen | `test/sonderzeichen.test.js` |
 | Markdown-Vergleich (Textfassung, Zeilendiff, Reiter) | `test/markdown-compare.test.js` |
 | Font- und Stilvergleich (Schrift, Größe, Schnitt, Farbe) | `test/style-compare.test.js` |
 | FR4 PDF-Response anzeigen/speichern | `test/fr4-pdf-response.test.js` |

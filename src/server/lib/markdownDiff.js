@@ -1,4 +1,4 @@
-import { diffTokens } from './diff.js';
+import { diffTokens, normalizeIgnoringSpaces } from './diff.js';
 
 /**
  * Zeilenweiser Vergleich zweier Markdown-Fassungen, aufbereitet für eine
@@ -86,6 +86,24 @@ export function buildLineDiff(referenceLines, generatedLines) {
         const rechts = added[position] ?? null;
         const referenceText = links ? referenceLines[links.aIndex] : null;
         const generatedText = rechts ? generatedLines[rechts.bIndex] : null;
+
+        // Unterscheiden sich zwei Zeilen nur in der Wortrennung – etwa weil ein
+        // Sonderzeichen als eigenes Textelement kodiert ist –, ist das keine Abweichung.
+        const nurAndersGetrennt =
+          links &&
+          rechts &&
+          normalizeIgnoringSpaces(referenceText) === normalizeIgnoringSpaces(generatedText);
+
+        if (nurAndersGetrennt) {
+          rows.push({
+            type: 'equal',
+            reference: referenceText,
+            generated: generatedText,
+            referenceLine: links.aIndex + 1,
+            generatedLine: rechts.bIndex + 1,
+          });
+          continue;
+        }
 
         rows.push({
           type: links && rechts ? 'changed' : links ? 'removed' : 'added',

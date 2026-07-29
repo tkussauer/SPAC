@@ -1,5 +1,5 @@
 import { extractPages } from './pdfText.js';
-import { diffTokens, similarity } from './diff.js';
+import { diffTokens, foldSegmentationDifferences, similarity } from './diff.js';
 import { pagesToMarkdown } from './pdfMarkdown.js';
 import { buildLineDiff } from './markdownDiff.js';
 import { compareStyles } from './styleCompare.js';
@@ -53,10 +53,11 @@ export function mergeBoxes(boxes, { gap = 6 } = {}) {
 export function comparePage(referencePage, generatedPage) {
   const refWords = referencePage?.words ?? [];
   const genWords = generatedPage?.words ?? [];
-  const ops = diffTokens(
-    refWords.map((w) => w.text),
-    genWords.map((w) => w.text)
-  );
+  const refTexte = refWords.map((w) => w.text);
+  const genTexte = genWords.map((w) => w.text);
+  // Reine Trennungsunterschiede (z. B. abweichend kodierte Sonderzeichen) gelten
+  // nicht als Abweichung und werden deshalb nicht markiert.
+  const ops = foldSegmentationDifferences(diffTokens(refTexte, genTexte), refTexte, genTexte);
 
   // Markiert wird ausschließlich im generierten Dokument:
   //  - "added":   Text, der dort steht und von der Referenz abweicht

@@ -83,13 +83,78 @@ export function itemToWords(item, pageHeight, style = null) {
         height: round(Math.max(height, 1)),
       },
       ...(style ? { style } : {}),
+      // Merkmale für das Zusammenführen über Elementgrenzen hinweg
+      startsAtItemStart: start === 0,
+      endsAtItemEnd: end === str.length && !item.hasEOL,
     });
   }
   return words;
 }
 
+/**
+ * Maximaler Abstand (relativ zur Schrifthöhe), bis zu dem zwei Textelemente noch als
+ * dasselbe Wort gelten. Ein echtes Leerzeichen ist in gängigen Schriften 0,25–0,33 em
+ * breit; 0,2 em bleibt sicher darunter.
+ */
+const MAX_WORT_LUECKE = 0.2;
+
+/**
+ * Führt Wortteile zusammen, die pdf.js auf mehrere Textelemente verteilt hat.
+ *
+ * Das passiert regelmäßig bei Sonderzeichen: Wird ein Umlaut aus einer anderen Schrift
+ * gesetzt, liefert pdf.js "Selbstst", "ä" und "ndige(r)" als drei Elemente. Ohne
+ * Zusammenführung entstünde daraus "Selbstst ä ndige(r)" – und damit eine gemeldete
+ * Abweichung, obwohl der Text identisch ist.
+ */
+export function mergeWordFragments(words) {
+  const merged = [];
+
+  for (const word of words) {
+    const vorheriges = merged[merged.length - 1];
+    if (vorheriges && gehoertZusammen(vorheriges, word)) {
+      vorheriges.text += word.text;
+      const rechts = Math.max(
+        vorheriges.box.x + vorheriges.box.width,
+        word.box.x + word.box.width
+      );
+      vorheriges.box.x = Math.min(vorheriges.box.x, word.box.x);
+      vorheriges.box.width = round(rechts - vorheriges.box.x);
+      vorheriges.box.y = Math.min(vorheriges.box.y, word.box.y);
+      vorheriges.box.height = round(Math.max(vorheriges.box.height, word.box.height));
+      vorheriges.endsAtItemEnd = word.endsAtItemEnd;
+      continue;
+    }
+    merged.push({ ...word, box: { ...word.box } });
+  }
+
+  // Hilfsmerkmale entfernen – sie gehören nicht ins Ergebnis.
+  return merged.map(({ startsAtItemStart, endsAtItemEnd, ...rest }) => rest);
+}
+
+function gehoertZusammen(links, rechts) {
+  if (!links.endsAtItemEnd || !rechts.startsAtItemStart) return false;
+
+  const hoehe = Math.min(links.box.height, rechts.box.height) || 1;
+  // Gleiche Zeile? (y ist die Oberkante; unterschiedliche Schriften weichen leicht ab)
+  if (Math.abs(links.box.y - rechts.box.y) > hoehe * 0.35) return false;
+
+  const luecke = rechts.box.x - (links.box.x + links.box.width);
+  return luecke <= hoehe * MAX_WORT_LUECKE && luecke >= -hoehe * 0.6;
+}
+
 function round(value) {
   return Math.round(value * 100) / 100;
+}
+
+/**
+ * Unsichtbare Steuerzeichen (weiches Trennzeichen, Zero-Width-Zeichen, BOM) entfernen und
+ * die Schreibweise vereinheitlichen (NFC). Ohne die Normalisierung gilt ein zerlegtes
+ * "a" + Trema nicht als dasselbe Zeichen wie ein zusammengesetztes "ä".
+ */
+export function cleanText(text) {
+  return String(text)
+    .replace(/[\u00ad\u200b-\u200f\u2060\ufeff]/g, '')
+    .normalize('NFC');
 }
 
 /**
@@ -132,11 +197,17 @@ export async function extractPages(buffer, { label = 'PDF' } = {}) {
       const styleInfo = await extractItemStyles(page, content.items, pdfjs);
       if (!styleInfo.colorsResolved) colorsResolved = false;
 
-      const words = [];
+      const rohWorte = [];
       content.items.forEach((item, index) => {
         if (typeof item.str !== 'string') return;
-        words.push(...itemToWords(item, viewport.height, styleInfo.styles[index] ?? null));
+        rohWorte.push(...itemToWords(item, viewport.height, styleInfo.styles[index] ?? null));
       });
+
+      // Über Elementgrenzen getrennte Wortteile wieder zusammenführen (Sonderzeichen)
+      // und unsichtbare Steuerzeichen entfernen.
+      const words = mergeWordFragments(rohWorte)
+        .map((word) => ({ ...word, text: cleanText(word.text) }))
+        .filter((word) => word.text !== '');
 
       pages.push({
         pageNumber,
