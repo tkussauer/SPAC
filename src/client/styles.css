@@ -78,6 +78,7 @@ main {
 
 input[type="text"],
 input[type="file"],
+select,
 textarea {
   padding: 0.5rem 0.6rem;
   border: 1px solid var(--border);
@@ -95,6 +96,7 @@ textarea {
 
 input[type="text"]:focus,
 input[type="file"]:focus,
+select:focus,
 textarea:focus {
   outline: 2px solid var(--primary);
   outline-offset: 1px;
@@ -169,6 +171,129 @@ button.secondary {
 .advanced .field {
   margin-top: 0.75rem;
   max-width: 34rem;
+}
+
+/* ------------------------------------------- Vergleich mit anderem Werkzeug */
+
+.capture summary {
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.capture-steps {
+  margin: 0.9rem 0 0;
+  padding-left: 1.3rem;
+  font-size: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.capture-steps .hint {
+  display: block;
+}
+
+.capture-url {
+  display: inline-block;
+  margin: 0.3rem 0.5rem 0 0;
+  padding: 0.2rem 0.45rem;
+  background: #eef2f7;
+  border-radius: 4px;
+  font-family: "Cascadia Mono", Consolas, "Courier New", monospace;
+}
+
+button.small {
+  padding: 0.3rem 0.7rem;
+  font-size: 0.85rem;
+}
+
+.capture-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+.capture-result {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.capture-hints {
+  margin: 0;
+  padding-left: 1.2rem;
+  font-size: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.capture-hints li.wichtig {
+  color: #7f1d1d;
+  font-weight: 600;
+}
+
+.capture-table {
+  display: grid;
+  grid-template-columns: auto 1fr 1fr;
+  font-size: 0.82rem;
+  font-family: "Cascadia Mono", Consolas, "Courier New", monospace;
+  overflow-x: auto;
+}
+
+.capture-table > span {
+  padding: 0.3rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  word-break: break-word;
+}
+
+.capture-table > .kopf {
+  font-weight: 600;
+  background: #f7f9fc;
+  color: var(--muted);
+  font-family: "Segoe UI", system-ui, sans-serif;
+  white-space: nowrap;
+}
+
+.zeile-unterschiedlich {
+  background: rgba(224, 168, 0, 0.14);
+}
+
+.zeile-nur-aufgezeichnet {
+  background: rgba(229, 72, 77, 0.12);
+}
+
+.zeile-nur-anwendung {
+  background: rgba(26, 127, 75, 0.1);
+}
+
+.zeile-automatisch {
+  color: var(--muted);
+}
+
+.capture-body {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.8rem;
+  background: #f7f9fc;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.6rem;
+  max-height: 18rem;
+  overflow: auto;
+}
+
+.capture-adopt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
 }
 
 .diagnostics summary {

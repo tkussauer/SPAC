@@ -162,6 +162,7 @@ src/server/
   lib/buildPostBody.js    Aufbau des POST-Bodys (FR3)
   lib/postClient.js       POST-Aufruf an die Ziel-URL (FR2/FR4)
   lib/httpHeaders.js      zusätzliche Header und cURL-Reproduktion
+  lib/requestDiff.js      Vergleich mit einer aufgezeichneten Fremd-Anfrage
   lib/pdfText.js          Text- und Positionsextraktion via pdf.js
   lib/diff.js             Wort-Diff (LCS)
   lib/pdfMarkdown.js      Textfassung des PDFs als Markdown
@@ -352,6 +353,7 @@ sind keine Binärdateien im Repository nötig und es besteht keine Netzwerkabhä
 | FR3 Rohtext-Übertragung (Byte-Ebene, Header, charset) | `test/fr3-raw-body.test.js` |
 | Protokollierung von Request-Body und Antwort im Fehlerfall | `test/logging.test.js` |
 | Zusätzliche Header und cURL-Reproduktion | `test/extra-headers.test.js` |
+| Aufzeichnung und Vergleich einer Fremd-Anfrage (Postman) | `test/capture-compare.test.js` |
 | Markdown-Vergleich (Textfassung, Zeilendiff, Reiter) | `test/markdown-compare.test.js` |
 | Font- und Stilvergleich (Schrift, Größe, Schnitt, Farbe) | `test/style-compare.test.js` |
 | FR4 PDF-Response anzeigen/speichern | `test/fr4-pdf-response.test.js` |
@@ -434,6 +436,44 @@ start.bat
 Ohne diesen Schalter wird bei Erfolg nur eine Zeile geschrieben
 (`POST … -> HTTP 200, 12345 Bytes PDF in 240 ms`).
 
+### Den Unterschied automatisch finden lassen
+
+Wenn derselbe Aufruf mit Postman funktioniert, hier aber nicht, findet die Anwendung den
+Unterschied selbst. Unter **„Mit Postman (oder einem anderen Werkzeug) vergleichen"**:
+
+1. Die dort angezeigte Adresse (`http://127.0.0.1:3000/api/capture`) in Postman **statt** der
+   Ziel-URL eintragen und die funktionierende Anfrage einmal absenden. Die Anwendung zeichnet
+   sie unverändert auf.
+2. Zurück im Browser auf **Vergleichen** klicken.
+
+Das Ergebnis benennt jeden Unterschied im Klartext, zum Beispiel:
+
+```
+• Der Header "X-Api-Key: geheim" fehlt in der Anwendung.
+• Der Header "Content-Type" unterscheidet sich: Anwendung "text/plain; charset=utf-8",
+  aufgezeichnet "text/plain".
+• Die Zeilenenden unterscheiden sich: Anwendung LF, aufgezeichnet CRLF.
+• Erste Abweichung im Body an Byte 24.
+    Anwendung     …rechnung.tpl\n\n<rechnung…   0a 0a 3c
+    Aufgezeichnet …rechnung.tpl\r\n\r\n<rechnung…  0d 0a 0d 0a 3c
+```
+
+Dazu eine Gegenüberstellung aller Header und der Bodys auf Byte-Ebene. Die Schaltfläche
+**„Abweichende Header übernehmen"** trägt die fehlenden Header und ggf. den Content-Type
+direkt in die Einstellungen ein. Es wird dabei nichts an den Zielservice gesendet.
+
+### Zeilenenden (häufigste Ursache)
+
+Die Anwendung normalisiert den Body standardmäßig auf **LF**. Postman sendet unter Windows in
+der Regel **CRLF** – reagiert der Endpoint darauf empfindlich, funktioniert derselbe Text in
+Postman und hier nicht. Unter „Erweiterte Einstellungen" lässt sich das umstellen:
+
+| Einstellung | Wirkung |
+| --- | --- |
+| `LF (\n)` | Standard, alles wird auf `\n` vereinheitlicht |
+| `CRLF (\r\n)` | durchgängig Windows-Zeilenenden, auch zwischen Vorlagepfad und Leerzeile |
+| `Unverändert aus der XML-Datei` | die Zeilenenden der Datei bleiben, wie sie sind |
+
 ### Aufruf 1:1 nachstellen (Vergleich mit Postman & Co.)
 
 Log und Diagnose enthalten einen **cURL-Befehl, der den Aufruf exakt reproduziert**, sowie den
@@ -464,5 +504,6 @@ Typische Stellschrauben:
 | HTTP 401/403, obwohl Postman funktioniert | Fehlender Header. Postman sendet u. a. `User-Agent` und ggf. Schlüssel/Token – unter „Zusätzliche Header" ergänzen |
 | HTTP 406 | `Accept:` (leerer Wert) setzen, um den Header ganz wegzulassen |
 | Umlaute kommen falsch an | `charset=iso-8859-1` im Content-Type setzen |
+| Funktioniert in Postman, hier nicht | Zeilenenden auf CRLF stellen und/oder „Mit Postman vergleichen" nutzen |
 | HTTP 400 mit Verweis auf die XML-Struktur | Body in der Diagnose prüfen: Zeile 1 = Vorlagepfad, Zeile 2 leer, ab Zeile 3 die XML ohne Deklaration |
 | Antwort ist HTML statt PDF | Die Fehlermeldung zeigt den Anfang der Antwort – meist eine Fehlerseite des Zielservice |

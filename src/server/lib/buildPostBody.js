@@ -30,13 +30,24 @@ export function stripXmlDeclaration(xmlContent) {
   return normalized;
 }
 
+/** Erkennt die vorherrschenden Zeilenenden eines Textes. */
+export function detectLineEnding(text) {
+  const crlf = (String(text).match(/\r\n/g) ?? []).length;
+  const lf = (String(text).match(/(^|[^\r])\n/g) ?? []).length;
+  if (crlf > 0 && crlf >= lf) return '\r\n';
+  return '\n';
+}
+
 /**
  * Baut den POST-Body gemäß FR3:
  *   Zeile 1: Vorlagepfad
  *   Zeile 2: leer
  *   ab Zeile 3: Inhalt der Test-XML ohne XML-Deklaration
+ *
+ * @param {'lf'|'crlf'|'keep'} lineEnding Zeilenenden des Bodys. "keep" übernimmt die
+ *        Zeilenenden der XML-Datei unverändert – manche Endpoints reagieren darauf.
  */
-export function buildPostBody({ templatePath, xmlContent }) {
+export function buildPostBody({ templatePath, xmlContent, lineEnding = 'lf' }) {
   if (typeof templatePath !== 'string' || templatePath.trim() === '') {
     throw new AppError('TEMPLATE_PATH_REQUIRED', 'Bitte einen Vorlagepfad angeben.');
   }
@@ -46,7 +57,27 @@ export function buildPostBody({ templatePath, xmlContent }) {
 
   const path = normalizeLineEndings(templatePath).split('\n')[0].trim();
   const xmlBody = stripXmlDeclaration(xmlContent);
-  return `${path}\n\n${xmlBody}`;
+
+  if (lineEnding === 'keep') {
+    // Zeilenenden der Originaldatei beibehalten; die beiden Kopfzeilen folgen derselben Schreibweise.
+    const original = String(xmlContent).replace(/^﻿/, '');
+    const trenner = detectLineEnding(original);
+    const körper = stripXmlDeclarationKeepEndings(original);
+    return `${path}${trenner}${trenner}${körper}`;
+  }
+
+  const trenner = lineEnding === 'crlf' ? '\r\n' : '\n';
+  const körper = trenner === '\n' ? xmlBody : xmlBody.replace(/\n/g, '\r\n');
+  return `${path}${trenner}${trenner}${körper}`;
+}
+
+/** Wie stripXmlDeclaration, aber ohne die Zeilenenden zu vereinheitlichen. */
+export function stripXmlDeclarationKeepEndings(xmlContent) {
+  const text = String(xmlContent).replace(/^﻿/, '');
+  const match = /^(\s*)<\?xml\b[^>]*\?>[ \t]*(\r\n|\r|\n)?/i.exec(text);
+  if (!match) return text;
+  // Nur entfernen, wenn vor der Deklaration ausschließlich Leerraum steht.
+  return text.slice(match[0].length);
 }
 
 export { BOM };

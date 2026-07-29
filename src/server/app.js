@@ -5,7 +5,8 @@ import express from 'express';
 import { AppError, isAppError } from './lib/errors.js';
 import { buildPostBody } from './lib/buildPostBody.js';
 import { comparePdfs } from './lib/comparePdfs.js';
-import { postToTarget, DEFAULT_CONTENT_TYPE, DEFAULT_TIMEOUT_MS } from './lib/postClient.js';
+import { buildRequest, postToTarget, DEFAULT_CONTENT_TYPE, DEFAULT_TIMEOUT_MS } from './lib/postClient.js';
+import { compareRequests } from './lib/requestDiff.js';
 import { PdfStore } from './lib/store.js';
 import { logger, DEFAULT_LOG_FILE } from './lib/logger.js';
 import { buildCurlCommand, parseHeaderLines } from './lib/httpHeaders.js';
@@ -17,6 +18,21 @@ const MAX_BODY = process.env.SPAC_MAX_UPLOAD || '75mb';
 
 /** Maximale Größe der Body-Vorschau in der Diagnose-Ausgabe. */
 const BODY_PREVIEW_LIMIT = 20_000;
+
+/**
+ * Baut die Header eines eingehenden Requests mit ihrer ursprünglichen Schreibweise auf.
+ * Node stellt in `req.headers` nur kleingeschriebene Namen bereit; für die Übernahme in
+ * das Feld „Zusätzliche Header" ist die Originalschreibweise aber die verständlichere.
+ */
+export function originalCaseHeaders(rawHeaders = [], fallback = {}) {
+  const headers = {};
+  for (let index = 0; index + 1 < rawHeaders.length; index += 2) {
+    const name = rawHeaders[index];
+    const wert = rawHeaders[index + 1];
+    headers[name] = headers[name] === undefined ? wert : `${headers[name]}, ${wert}`;
+  }
+  return Object.keys(headers).length > 0 ? headers : { ...fallback };
+}
 
 /**
  * Baut die Express-App. `transport` ist injizierbar (node:http-kompatibel),
@@ -31,6 +47,36 @@ export function createApp({
 } = {}) {
   const app = express();
   app.disable('x-powered-by');
+
+  /**
+   * Aufzeichnungs-Endpunkt: nimmt eine beliebige Anfrage entgegen und merkt sie sich
+   * unverändert. Damit lässt sich ein funktionierender Aufruf aus einem anderen Werkzeug
+   * (z. B. Postman) mit dem vergleichen, was diese Anwendung senden würde.
+   *
+   * Muss vor den globalen Body-Parsern stehen, damit der Rohkörper unangetastet bleibt.
+   */
+  let capturedRequest = null;
+  app.all('/api/capture', express.raw({ type: () => true, limit: MAX_BODY }), (req, res, next) => {
+    // GET/DELETE steuern die Aufzeichnung und werden weiter unten behandelt.
+    if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'DELETE') return next();
+
+    const bodyBuffer = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+    capturedRequest = {
+      method: req.method,
+      path: req.originalUrl,
+      httpVersion: req.httpVersion,
+      // Über rawHeaders, damit die ursprüngliche Schreibweise erhalten bleibt
+      // (req.headers ist komplett kleingeschrieben).
+      headers: originalCaseHeaders(req.rawHeaders, req.headers),
+      bodyBuffer,
+      receivedAt: new Date().toISOString(),
+    };
+    log.info(`Anfrage aufgezeichnet: ${req.method} ${req.originalUrl}, ${bodyBuffer.length} Bytes`);
+    res.type('text/plain; charset=utf-8').send(
+      `Anfrage aufgezeichnet (${bodyBuffer.length} Bytes).\n` +
+        'Zurück im PDF-Vergleichstool auf "Vergleichen" klicken.\n'
+    );
+  });
 
   app.use(express.json({ limit: MAX_BODY }));
   app.use(express.raw({ type: ['application/pdf', 'application/octet-stream'], limit: MAX_BODY }));
@@ -51,6 +97,76 @@ export function createApp({
       logFile: log.file || DEFAULT_LOG_FILE,
       logBodies,
     });
+  });
+
+  /** Status der Aufzeichnung – die Oberfläche fragt hier, ob schon etwas eingetroffen ist. */
+  app.get('/api/capture', (_req, res) => {
+    if (!capturedRequest) {
+      return res.json({ received: false });
+    }
+    res.json({
+      received: true,
+      request: {
+        method: capturedRequest.method,
+        path: capturedRequest.path,
+        headers: capturedRequest.headers,
+        bytes: capturedRequest.bodyBuffer.length,
+        body: capturedRequest.bodyBuffer.toString('utf8'),
+        receivedAt: capturedRequest.receivedAt,
+      },
+    });
+  });
+
+  app.delete('/api/capture', (_req, res) => {
+    capturedRequest = null;
+    res.json({ received: false });
+  });
+
+  /**
+   * Vergleicht die aufgezeichnete Anfrage mit der, die die Anwendung mit den
+   * aktuellen Eingaben senden würde. Es wird dabei nichts an den Zielservice gesendet.
+   */
+  app.post('/api/capture/compare', (req, res, next) => {
+    try {
+      if (!capturedRequest) {
+        throw new AppError(
+          'NO_CAPTURE',
+          'Es wurde noch keine Anfrage aufgezeichnet. Bitte den Aufruf aus dem anderen Werkzeug an die angezeigte URL senden.',
+          { status: 409 }
+        );
+      }
+
+      const { templatePath, xmlContent, xmlFileName, contentType, extraHeaders, lineEnding } = req.body ?? {};
+      const template = validateTemplatePath(templatePath);
+      validateXmlContent(xmlContent, xmlFileName || 'Test-XML');
+
+      const eigener = buildRequest({
+        targetUrl: 'http://vergleich.lokal/',
+        body: buildPostBody({ templatePath: template, xmlContent, lineEnding }),
+        contentType: typeof contentType === 'string' && contentType.trim() ? contentType.trim() : undefined,
+        extraHeaders: parseHeaderLines(extraHeaders),
+      });
+
+      res.json({
+        comparison: compareRequests(
+          { method: 'POST', headers: eigener.headers, bodyBuffer: eigener.bodyBuffer },
+          {
+            method: capturedRequest.method,
+            headers: capturedRequest.headers,
+            bodyBuffer: capturedRequest.bodyBuffer,
+          }
+        ),
+        application: { body: eigener.body, bytes: eigener.bytes, headers: eigener.headers },
+        captured: {
+          body: capturedRequest.bodyBuffer.toString('utf8'),
+          bytes: capturedRequest.bodyBuffer.length,
+          receivedAt: capturedRequest.receivedAt,
+          path: capturedRequest.path,
+        },
+      });
+    } catch (err) {
+      next(err);
+    }
   });
 
   /** FR1: Referenz-PDF hochladen (roher Datei-Upload, kein multipart nötig). */
@@ -78,7 +194,7 @@ export function createApp({
    */
   app.post('/api/generate', async (req, res, next) => {
     try {
-      const { targetUrl, templatePath, xmlContent, xmlFileName, referenceId, contentType, extraHeaders } =
+      const { targetUrl, templatePath, xmlContent, xmlFileName, referenceId, contentType, extraHeaders, lineEnding } =
         req.body ?? {};
 
       const url = validateTargetUrl(targetUrl);
@@ -95,7 +211,7 @@ export function createApp({
         );
       }
 
-      const body = buildPostBody({ templatePath: template, xmlContent });
+      const body = buildPostBody({ templatePath: template, xmlContent, lineEnding });
 
       let result;
       try {

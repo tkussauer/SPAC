@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { encodingFromContentType, postToTarget } from '../src/server/lib/postClient.js';
+import { buildPostBody } from '../src/server/lib/buildPostBody.js';
 import { startApp, startRawTarget, SAMPLE_XML, SAMPLE_TEMPLATE_PATH } from './helpers/fixtures.mjs';
 
 /**
@@ -143,6 +144,63 @@ test('FR3: UTF-8 ist der Standard und Umlaute werden korrekt kodiert', async () 
     assert.deepEqual(wire.bodyBytes, Buffer.from('<text>Grüße</text>', 'utf8'));
     assert.equal(wire.headers['content-length'], String(Buffer.byteLength('<text>Grüße</text>', 'utf8')));
   } finally {
+    await target.close();
+  }
+});
+
+/**
+ * Zeilenenden: Standard ist LF. Manche Endpoints erwarten CRLF – und genau das sendet
+ * Postman unter Windows meist. Deshalb ist die Schreibweise einstellbar.
+ */
+test('FR3: Zeilenenden im Body sind einstellbar', async () => {
+  const xml = '<?xml version="1.0"?>\r\n<a>\r\n  <b/>\r\n</a>\r\n';
+  const erwarteterInhalt = '<a>\n  <b/>\n</a>\n';
+
+  // Standard: alles auf LF normalisiert
+  const lf = buildPostBody({ templatePath: 'C:\\x.tpl', xmlContent: xml });
+  assert.equal(lf, `C:\\x.tpl\n\n${erwarteterInhalt}`);
+  assert.ok(!lf.includes('\r'));
+
+  // CRLF: durchgängig Windows-Zeilenenden, auch zwischen Kopf- und Inhaltsteil
+  const crlf = buildPostBody({ templatePath: 'C:\\x.tpl', xmlContent: xml, lineEnding: 'crlf' });
+  assert.equal(crlf, `C:\\x.tpl\r\n\r\n${erwarteterInhalt.replace(/\n/g, '\r\n')}`);
+  assert.ok(!/[^\r]\n/.test(crlf), 'Es darf kein einzelnes LF übrig bleiben');
+
+  // keep: Zeilenenden der Datei bleiben unangetastet
+  const keep = buildPostBody({ templatePath: 'C:\\x.tpl', xmlContent: xml, lineEnding: 'keep' });
+  assert.equal(keep, `C:\\x.tpl\r\n\r\n<a>\r\n  <b/>\r\n</a>\r\n`);
+
+  // keep mit LF-Datei bleibt bei LF
+  const keepLf = buildPostBody({
+    templatePath: 'C:\\x.tpl',
+    xmlContent: '<?xml version="1.0"?>\n<a/>\n',
+    lineEnding: 'keep',
+  });
+  assert.equal(keepLf, 'C:\\x.tpl\n\n<a/>\n');
+});
+
+test('FR3: Die eingestellten Zeilenenden gehen so über die Leitung', async () => {
+  const target = await startRawTarget();
+  const app = await startApp();
+
+  try {
+    await fetch(`${app.url}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        targetUrl: target.url,
+        templatePath: SAMPLE_TEMPLATE_PATH,
+        xmlContent: SAMPLE_XML,
+        lineEnding: 'crlf',
+      }),
+    });
+
+    const wire = target.captured[0];
+    assert.ok(wire.body.startsWith(`${SAMPLE_TEMPLATE_PATH}\r\n\r\n<rechnung`), 'CRLF wurde nicht gesendet');
+    assert.ok(!/[^\r]\n/.test(wire.body), 'Es darf kein einzelnes LF übrig bleiben');
+    assert.equal(wire.headers['content-length'], String(Buffer.byteLength(wire.body, 'utf8')));
+  } finally {
+    await app.close();
     await target.close();
   }
 });

@@ -87,6 +87,19 @@
           </label>
 
           <label class="field">
+            <span class="field-label">Zeilenenden im Body</span>
+            <select id="line-ending" name="lineEnding">
+              <option value="lf" selected>LF (\n) – Standard</option>
+              <option value="crlf">CRLF (\r\n) – wie Windows/Postman</option>
+              <option value="keep">Unverändert aus der XML-Datei</option>
+            </select>
+            <span class="hint">
+              Wenn derselbe Body mit einem anderen Werkzeug funktioniert, hier aber nicht, ist
+              das oft die Ursache: Postman sendet unter Windows meist CRLF.
+            </span>
+          </label>
+
+          <label class="field">
             <span class="field-label">Zusätzliche Header</span>
             <textarea
               id="extra-headers"
@@ -134,6 +147,40 @@
           <li>Antwortzeit des Zielservice: <strong id="summary-duration"></strong></li>
         </ul>
       </section>
+
+      <!-- Findet den Unterschied zu einem Aufruf, der mit einem anderen Werkzeug funktioniert -->
+      <details id="capture" class="card capture">
+        <summary>Mit Postman (oder einem anderen Werkzeug) vergleichen</summary>
+        <ol class="capture-steps">
+          <li>
+            In Postman dieselbe Anfrage, die dort funktioniert, einmalig an diese Adresse senden
+            statt an den Zielservice:
+            <code id="capture-url" class="capture-url"></code>
+            <button type="button" id="capture-copy" class="secondary small">Adresse kopieren</button>
+          </li>
+          <li>
+            Danach hier auf <strong>Vergleichen</strong> klicken – die Anfrage wird Byte für Byte
+            mit der verglichen, die diese Anwendung senden würde.
+            <span class="hint">Es wird dabei nichts an den Zielservice gesendet.</span>
+          </li>
+        </ol>
+        <div class="capture-actions">
+          <button type="button" id="capture-compare" class="primary small">Vergleichen</button>
+          <button type="button" id="capture-reset" class="secondary small">Aufzeichnung verwerfen</button>
+          <span id="capture-status" class="status" role="status" aria-live="polite"></span>
+        </div>
+        <div id="capture-result" class="capture-result" hidden>
+          <ul id="capture-hints" class="capture-hints"></ul>
+          <div class="capture-table" id="capture-headers"></div>
+          <pre id="capture-body" class="capture-body"></pre>
+          <div class="capture-adopt" id="capture-adopt" hidden>
+            <button type="button" id="capture-apply" class="primary small">
+              Abweichende Header übernehmen
+            </button>
+            <span class="hint">Füllt „Zusätzliche Header“ und ggf. den Content-Type.</span>
+          </div>
+        </div>
+      </details>
 
       <!-- Diagnose: zeigt den exakt gesendeten Request (hilft bei Problemen mit dem Endpoint) -->
       <details id="diagnostics" class="card diagnostics" hidden>

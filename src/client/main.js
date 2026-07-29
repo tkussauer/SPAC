@@ -20,6 +20,7 @@ const dom = {
   templatePath: el('template-path'),
   contentType: el('content-type'),
   extraHeaders: el('extra-headers'),
+  lineEnding: el('line-ending'),
   advanced: el('advanced'),
   tabs: el('tabs'),
   tabPdf: el('tab-pdf'),
@@ -39,6 +40,17 @@ const dom = {
   toggleHighlights: el('toggle-highlights'),
   diagnostics: el('diagnostics'),
   diagnosticsContent: el('diagnostics-content'),
+  captureUrl: el('capture-url'),
+  captureCopy: el('capture-copy'),
+  captureCompare: el('capture-compare'),
+  captureReset: el('capture-reset'),
+  captureStatus: el('capture-status'),
+  captureResult: el('capture-result'),
+  captureHints: el('capture-hints'),
+  captureHeaders: el('capture-headers'),
+  captureBody: el('capture-body'),
+  captureAdopt: el('capture-adopt'),
+  captureApply: el('capture-apply'),
   generateButton: el('generate-button'),
   refreshButton: el('refresh-button'),
   downloadLink: el('download-link'),
@@ -85,6 +97,10 @@ function loadSettings() {
       dom.contentType.value = saved.contentType;
       if (saved.contentType !== dom.contentType.defaultValue) dom.advanced?.setAttribute('open', '');
     }
+    if (saved.lineEnding === 'lf' || saved.lineEnding === 'crlf' || saved.lineEnding === 'keep') {
+      dom.lineEnding.value = saved.lineEnding;
+      if (saved.lineEnding !== 'lf') dom.advanced?.setAttribute('open', '');
+    }
     if (typeof saved.extraHeaders === 'string' && saved.extraHeaders.trim()) {
       dom.extraHeaders.value = saved.extraHeaders;
       dom.advanced?.setAttribute('open', '');
@@ -106,6 +122,7 @@ function saveSettings() {
         templatePath: dom.templatePath.value,
         contentType: dom.contentType.value,
         extraHeaders: dom.extraHeaders.value,
+        lineEnding: dom.lineEnding.value,
         showHighlights: dom.toggleHighlights.checked,
         onlyDiffLines: dom.toggleOnlyDiff.checked,
         activeTab: state.activeTab,
@@ -250,6 +267,7 @@ async function runComparison({ reason = 'generate' } = {}) {
         referenceId: state.referenceId,
         contentType: dom.contentType.value.trim() || undefined,
         extraHeaders: dom.extraHeaders.value,
+        lineEnding: dom.lineEnding.value,
       }),
     });
 
@@ -358,6 +376,27 @@ async function renderResult(result) {
   dom.tabs.hidden = false;
   await renderPages(result, comparison);
   applyActiveTab();
+}
+
+/** Verdrahtet den Vergleich mit einem anderen Werkzeug (wird einmalig beim Start aufgerufen). */
+function wireCaptureComparison() {
+  dom.captureUrl.textContent = `${window.location.origin}/api/capture`;
+  dom.captureCopy.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(dom.captureUrl.textContent);
+      dom.captureStatus.textContent = 'Adresse kopiert.';
+    } catch {
+      dom.captureStatus.textContent = 'Kopieren nicht möglich – Adresse bitte manuell übernehmen.';
+    }
+  });
+  dom.captureCompare.addEventListener('click', vergleicheMitAufzeichnung);
+  dom.captureApply.addEventListener('click', uebernehmeCaptureHeader);
+  dom.captureReset.addEventListener('click', async () => {
+    await fetch('/api/capture', { method: 'DELETE' }).catch(() => {});
+    letzterCaptureVergleich = null;
+    dom.captureResult.hidden = true;
+    dom.captureStatus.textContent = 'Aufzeichnung verworfen.';
+  });
 }
 
 // ------------------------------------------------------- Markdown-Vergleich
@@ -593,6 +632,132 @@ function wordCount(seite, klasse) {
   zelle.textContent = seite ? `${seite.words} Wörter` : '–';
   if (seite) zelle.title = `Seite(n): ${seite.pages.join(', ')}`;
   return zelle;
+}
+
+// ------------------------------ Vergleich mit einem anderen Werkzeug (Postman)
+
+/** Merkt sich den letzten Vergleich, damit die Header übernommen werden können. */
+let letzterCaptureVergleich = null;
+
+async function vergleicheMitAufzeichnung() {
+  if (!state.xmlContent) {
+    dom.captureStatus.textContent = 'Bitte zuerst eine Test-XML-Datei auswählen.';
+    return;
+  }
+
+  dom.captureStatus.textContent = 'Vergleiche …';
+  try {
+    const response = await fetch('/api/capture/compare', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        templatePath: dom.templatePath.value.trim(),
+        xmlContent: state.xmlContent,
+        xmlFileName: state.xmlFileName,
+        contentType: dom.contentType.value.trim() || undefined,
+        extraHeaders: dom.extraHeaders.value,
+        lineEnding: dom.lineEnding.value,
+      }),
+    });
+
+    if (!response.ok) {
+      const { message } = await readErrorFromResponse(response);
+      dom.captureStatus.textContent = message;
+      dom.captureResult.hidden = true;
+      return;
+    }
+
+    const daten = await response.json();
+    letzterCaptureVergleich = daten.comparison;
+    zeigeCaptureVergleich(daten);
+    dom.captureStatus.textContent = `Aufgezeichnet um ${new Date(daten.captured.receivedAt).toLocaleTimeString('de-DE')}.`;
+  } catch (err) {
+    dom.captureStatus.textContent = `Vergleich fehlgeschlagen: ${err.message}`;
+  }
+}
+
+function zeigeCaptureVergleich({ comparison, captured }) {
+  dom.captureResult.hidden = false;
+
+  // Hinweise
+  const hinweise = document.createDocumentFragment();
+  for (const hinweis of comparison.hints) {
+    const punkt = document.createElement('li');
+    punkt.textContent = hinweis;
+    if (!comparison.identical) punkt.className = 'wichtig';
+    hinweise.append(punkt);
+  }
+  dom.captureHints.replaceChildren(hinweise);
+
+  // Header-Gegenüberstellung
+  const tabelle = document.createDocumentFragment();
+  for (const titel of ['Header', 'Anwendung', 'Aufgezeichnet']) {
+    const kopf = document.createElement('span');
+    kopf.className = 'kopf';
+    kopf.textContent = titel;
+    tabelle.append(kopf);
+  }
+  for (const header of comparison.headers) {
+    const klasse =
+      header.status === 'gleich'
+        ? header.automatic || header.toolSpecific
+          ? ' zeile-automatisch'
+          : ''
+        : ` zeile-${header.status}`;
+    tabelle.append(
+      zelle(header.name, klasse),
+      zelle(header.application ?? '–', klasse),
+      zelle(header.captured ?? '–', klasse)
+    );
+  }
+  dom.captureHeaders.replaceChildren(tabelle);
+
+  // Body
+  const body = comparison.body;
+  const zeilen = [
+    `Body: Anwendung ${body.applicationBytes} Bytes, aufgezeichnet ${body.capturedBytes} Bytes` +
+      (body.identical ? ' – identisch' : ''),
+    `Zeilenenden: Anwendung ${body.lineEndings.application.art}, aufgezeichnet ${body.lineEndings.captured.art}`,
+  ];
+  if (!body.identical && body.firstDifferenceAt !== null) {
+    zeilen.push(
+      '',
+      `Erste Abweichung an Byte ${body.firstDifferenceAt}:`,
+      `  Anwendung    …${body.applicationContext.text}…`,
+      `               ${body.applicationContext.hex}`,
+      `  Aufgezeichnet …${body.capturedContext.text}…`,
+      `               ${body.capturedContext.hex}`
+    );
+  }
+  zeilen.push('', '--- Aufgezeichneter Body ---', captured.body);
+  dom.captureBody.textContent = zeilen.join('\n');
+
+  const uebernehmbar = Boolean(comparison.suggestedHeaders || comparison.suggestedContentType);
+  dom.captureAdopt.hidden = !uebernehmbar;
+}
+
+function zelle(text, klasse) {
+  const element = document.createElement('span');
+  element.className = klasse.trim();
+  element.textContent = text;
+  return element;
+}
+
+function uebernehmeCaptureHeader() {
+  if (!letzterCaptureVergleich) return;
+
+  if (letzterCaptureVergleich.suggestedContentType) {
+    dom.contentType.value = letzterCaptureVergleich.suggestedContentType;
+  }
+  if (letzterCaptureVergleich.suggestedHeaders) {
+    const vorhanden = dom.extraHeaders.value.trim();
+    dom.extraHeaders.value = vorhanden
+      ? `${vorhanden}\n${letzterCaptureVergleich.suggestedHeaders}`
+      : letzterCaptureVergleich.suggestedHeaders;
+  }
+  saveSettings();
+  dom.advanced?.setAttribute('open', '');
+  dom.captureStatus.textContent = 'Header übernommen – jetzt erneut „Vergleich generieren" klicken.';
 }
 
 // ------------------------------------------------------------------- Reiter
@@ -879,6 +1044,7 @@ function wireUp() {
   });
   dom.contentType.addEventListener('input', saveSettings);
   dom.extraHeaders.addEventListener('input', saveSettings);
+  dom.lineEnding.addEventListener('change', saveSettings);
 
   // Markierungen ein-/ausblenden (Zustand bleibt erhalten)
   dom.toggleHighlights.addEventListener('change', () => {
@@ -906,6 +1072,7 @@ function wireUp() {
     saveSettings();
   });
   applyActiveTab();
+  wireCaptureComparison();
 
   // Nach einer Größenänderung des Fensters neu zeichnen, damit die Seiten scharf bleiben.
   let resizeTimer = null;

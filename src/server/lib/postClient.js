@@ -62,15 +62,12 @@ function shorten(text, limit = UI_PREVIEW_LIMIT) {
   return value.length <= limit ? value : `${value.slice(0, limit)}\n… (gekürzt, insgesamt ${value.length} Zeichen)`;
 }
 
-export async function postToTarget({
-  targetUrl,
-  body,
-  contentType = DEFAULT_CONTENT_TYPE,
-  timeoutMs = DEFAULT_TIMEOUT_MS,
-  extraHeaders = {},
-  transport = null,
-}) {
-  const url = new URL(targetUrl);
+/**
+ * Stellt den Request zusammen, ohne ihn zu senden.
+ * Wird sowohl vom eigentlichen Aufruf als auch vom Vergleich mit einem
+ * aufgezeichneten Fremd-Request (z. B. aus Postman) genutzt.
+ */
+export function buildRequest({ targetUrl, body, contentType = DEFAULT_CONTENT_TYPE, extraHeaders = {} }) {
   const encoding = encodingFromContentType(contentType);
   const payload = Buffer.isBuffer(body) ? body : Buffer.from(String(body), encoding);
 
@@ -84,8 +81,7 @@ export async function postToTarget({
     extraHeaders
   );
 
-  /** Vollständige Angaben zum gesendeten Request – für Log und Fehleranzeige. */
-  const requestInfo = {
+  return {
     method: 'POST',
     targetUrl,
     headers,
@@ -94,6 +90,21 @@ export async function postToTarget({
     bytes: payload.length,
     encoding,
   };
+}
+
+export async function postToTarget({
+  targetUrl,
+  body,
+  contentType = DEFAULT_CONTENT_TYPE,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+  extraHeaders = {},
+  transport = null,
+}) {
+  const url = new URL(targetUrl);
+
+  /** Vollständige Angaben zum gesendeten Request – für Log und Fehleranzeige. */
+  const requestInfo = buildRequest({ targetUrl, body, contentType, extraHeaders });
+  const { headers, bodyBuffer: payload, encoding } = requestInfo;
 
   /** Hängt Request- und Antwortdaten an den Fehler, damit sie geloggt und angezeigt werden können. */
   const withDiagnostics = (appError, response = null) => {
