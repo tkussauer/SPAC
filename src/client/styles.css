@@ -77,7 +77,8 @@ main {
 }
 
 input[type="text"],
-input[type="file"] {
+input[type="file"],
+textarea {
   padding: 0.5rem 0.6rem;
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -86,10 +87,23 @@ input[type="file"] {
   width: 100%;
 }
 
+textarea {
+  font-family: "Cascadia Mono", Consolas, "Courier New", monospace;
+  font-size: 0.85rem;
+  resize: vertical;
+}
+
 input[type="text"]:focus,
-input[type="file"]:focus {
+input[type="file"]:focus,
+textarea:focus {
   outline: 2px solid var(--primary);
   outline-offset: 1px;
+}
+
+.hint code {
+  background: #eef2f7;
+  border-radius: 3px;
+  padding: 0 0.2rem;
 }
 
 .hint {

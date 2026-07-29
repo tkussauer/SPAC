@@ -85,6 +85,23 @@
               charset bestimmt die Byte-Kodierung des Bodys.
             </span>
           </label>
+
+          <label class="field">
+            <span class="field-label">Zusätzliche Header</span>
+            <textarea
+              id="extra-headers"
+              name="extraHeaders"
+              rows="3"
+              spellcheck="false"
+              placeholder="X-Api-Key: geheim&#10;User-Agent: PostmanRuntime/7.39.0"
+            ></textarea>
+            <span class="hint">
+              Eine Zeile je Header im Format <code>Name: Wert</code>. Überschreibt gleichnamige
+              Standardheader; ein leerer Wert entfernt einen Standardheader
+              (z. B. <code>Accept:</code>). <code>Content-Length</code> und <code>Host</code>
+              werden immer automatisch gesetzt.
+            </span>
+          </label>
         </details>
 
         <div class="actions">

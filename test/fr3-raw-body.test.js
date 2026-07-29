@@ -51,7 +51,7 @@ test('FR3: Der Body geht 1:1 als Rohtext über die Leitung', async () => {
   }
 });
 
-test('FR3: Es werden nur die notwendigen Header gesendet (keine Browser-Header)', async () => {
+test('FR3: Es werden nur definierte Header gesendet (keine Browser-Header)', async () => {
   const target = await startRawTarget();
   const app = await startApp();
 
@@ -66,10 +66,23 @@ test('FR3: Es werden nur die notwendigen Header gesendet (keine Browser-Header)'
       }),
     });
 
-    const gesendet = Object.keys(target.captured[0].headers).sort();
-    assert.deepEqual(gesendet, ['accept', 'connection', 'content-length', 'content-type', 'host']);
-    for (const unerwuenscht of ['sec-fetch-mode', 'accept-language', 'accept-encoding', 'user-agent', 'origin']) {
-      assert.equal(target.captured[0].headers[unerwuenscht], undefined, `Header ${unerwuenscht} darf nicht gesendet werden`);
+    const headers = target.captured[0].headers;
+    assert.deepEqual(Object.keys(headers).sort(), [
+      'accept',
+      'connection',
+      'content-length',
+      'content-type',
+      'host',
+      'user-agent',
+    ]);
+
+    // Unspezifisches Accept – eine Einschränkung auf application/pdf kann HTTP 406 auslösen.
+    assert.equal(headers.accept, '*/*');
+    // User-Agent wird gesetzt, weil Endpoints und Firewalls Anfragen ohne UA abweisen können.
+    assert.match(headers['user-agent'], /^SPAC-PDF-Vergleichstool\//);
+
+    for (const unerwuenscht of ['sec-fetch-mode', 'accept-language', 'accept-encoding', 'origin', 'cookie']) {
+      assert.equal(headers[unerwuenscht], undefined, `Header ${unerwuenscht} darf nicht gesendet werden`);
     }
   } finally {
     await app.close();

@@ -63,10 +63,27 @@ export class Logger {
   }
 
   /**
+   * Schreibt den gesendeten Body unverändert als Datei weg, damit der Aufruf per
+   * cURL exakt reproduziert und mit anderen Werkzeugen verglichen werden kann.
+   * @returns {string|null} Pfad der Datei
+   */
+  saveRequestBody(buffer) {
+    if (!this.file || !buffer) return null;
+    const ziel = path.join(path.dirname(this.file), 'last-request-body.txt');
+    try {
+      fs.mkdirSync(path.dirname(ziel), { recursive: true });
+      fs.writeFileSync(ziel, Buffer.from(buffer));
+      return ziel;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Protokolliert einen POST-Aufruf vollständig: gesendete Header, gesendeter Body
    * (als Text und als Hexdump) sowie die Antwort des Zielservice inklusive Body.
    */
-  logExchange({ level = 'FEHLER', targetUrl, error = null, request = {}, response = null }) {
+  logExchange({ level = 'FEHLER', targetUrl, error = null, request = {}, response = null, curl = null }) {
     const lines = [
       SEPARATOR,
       `[${new Date().toISOString()}] ${level}: POST ${targetUrl}`,
@@ -88,6 +105,10 @@ export class Logger {
 
     if (request.bodyBuffer) {
       lines.push('', '--- BODY-ANFANG ALS HEX ---', hexPreview(request.bodyBuffer));
+    }
+
+    if (curl) {
+      lines.push('', '--- DERSELBE AUFRUF ALS CURL-BEFEHL ---', curl);
     }
 
     if (response) {

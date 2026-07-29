@@ -2,10 +2,18 @@ import http from 'node:http';
 import https from 'node:https';
 import { AppError } from './errors.js';
 import { assertPdf } from './validate.js';
+import { mergeHeaders } from './httpHeaders.js';
 
 /** Standard-Content-Type (siehe README, Klärungspunkt 2). Über Env-Variable überschreibbar. */
 export const DEFAULT_CONTENT_TYPE = process.env.SPAC_POST_CONTENT_TYPE || 'text/plain; charset=utf-8';
 export const DEFAULT_TIMEOUT_MS = Number(process.env.SPAC_POST_TIMEOUT_MS || 120_000);
+/**
+ * Manche Endpoints und vorgelagerte Firewalls weisen Anfragen ohne User-Agent ab.
+ * Über die zusätzlichen Header lässt sich der Wert frei setzen oder mit leerem Wert entfernen.
+ */
+export const DEFAULT_USER_AGENT = process.env.SPAC_POST_USER_AGENT || 'SPAC-PDF-Vergleichstool/1.0';
+/** Bewusst unspezifisch – eine Einschränkung auf application/pdf kann zu HTTP 406 führen. */
+export const DEFAULT_ACCEPT = process.env.SPAC_POST_ACCEPT || '*/*';
 
 /**
  * Ermittelt die Byte-Kodierung des Bodys aus dem charset-Parameter des Content-Type.
@@ -66,12 +74,15 @@ export async function postToTarget({
   const encoding = encodingFromContentType(contentType);
   const payload = Buffer.isBuffer(body) ? body : Buffer.from(String(body), encoding);
 
-  const headers = {
-    'Content-Type': contentType,
-    'Content-Length': String(payload.length),
-    Accept: 'application/pdf, */*',
-    ...extraHeaders,
-  };
+  const headers = mergeHeaders(
+    {
+      'Content-Type': contentType,
+      'Content-Length': String(payload.length),
+      Accept: DEFAULT_ACCEPT,
+      'User-Agent': DEFAULT_USER_AGENT,
+    },
+    extraHeaders
+  );
 
   /** Vollständige Angaben zum gesendeten Request – für Log und Fehleranzeige. */
   const requestInfo = {

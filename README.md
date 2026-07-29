@@ -161,6 +161,7 @@ src/server/
   app.js                  Express-App und API-Endpunkte
   lib/buildPostBody.js    Aufbau des POST-Bodys (FR3)
   lib/postClient.js       POST-Aufruf an die Ziel-URL (FR2/FR4)
+  lib/httpHeaders.js      zusätzliche Header und cURL-Reproduktion
   lib/pdfText.js          Text- und Positionsextraktion via pdf.js
   lib/diff.js             Wort-Diff (LCS)
   lib/pdfMarkdown.js      Textfassung des PDFs als Markdown
@@ -223,7 +224,8 @@ Leitung gehen ausschließlich:
 POST /pfad HTTP/1.1
 Content-Type: text/plain; charset=utf-8
 Content-Length: 42
-Accept: application/pdf, */*
+Accept: */*
+User-Agent: SPAC-PDF-Vergleichstool/1.0
 Host: server:8080
 Connection: keep-alive
 
@@ -232,6 +234,22 @@ C:\Vorlagen\rechnung.tpl
 <rechnung nummer="4711">
   …
 ```
+
+`Accept` ist bewusst unspezifisch (`*/*`) – eine Einschränkung auf `application/pdf` kann bei
+streng verhandelnden Endpoints zu HTTP 406 führen. Der `User-Agent` wird gesetzt, weil manche
+Endpoints und vorgelagerte Firewalls Anfragen ohne User-Agent abweisen.
+
+**Eigene Header** lassen sich unter „Erweiterte Einstellungen" ergänzen – eine Zeile je Header
+im Format `Name: Wert`:
+
+```
+X-Api-Key: geheim
+User-Agent: PostmanRuntime/7.39.0
+Accept:
+```
+
+Ein gleichnamiger Header ersetzt den Standard (unabhängig von der Schreibweise), ein **leerer
+Wert entfernt** ihn. `Content-Length` und `Host` werden immer automatisch gesetzt.
 
 Der Content-Type ist **in der Oberfläche unter „Erweiterte Einstellungen" änderbar** (z. B.
 `text/plain` ohne charset, `application/xml`, `text/xml`, `application/octet-stream`) und wird
@@ -306,6 +324,8 @@ die Zeilenstruktur des Bodys aus FR3 garantiert eingehalten wird.
 | `SPAC_PORT` | `3000` | Port des lokalen Servers |
 | `SPAC_HOST` | `127.0.0.1` | Netzwerkadresse |
 | `SPAC_POST_CONTENT_TYPE` | `text/plain; charset=utf-8` | Content-Type des POST-Requests |
+| `SPAC_POST_USER_AGENT` | `SPAC-PDF-Vergleichstool/1.0` | User-Agent des POST-Requests |
+| `SPAC_POST_ACCEPT` | `*/*` | Accept-Header des POST-Requests |
 | `SPAC_POST_TIMEOUT_MS` | `120000` | Zeitlimit für den Zielservice |
 | `SPAC_MAX_UPLOAD` | `75mb` | maximale Größe von Upload/Antwort |
 | `SPAC_LOG_FILE` | `logs/spac.log` | Pfad der Logdatei |
@@ -331,6 +351,7 @@ sind keine Binärdateien im Repository nötig und es besteht keine Netzwerkabhä
 | FR3 Aufbau des POST-Bodys | `test/fr2-fr3-post.test.js` |
 | FR3 Rohtext-Übertragung (Byte-Ebene, Header, charset) | `test/fr3-raw-body.test.js` |
 | Protokollierung von Request-Body und Antwort im Fehlerfall | `test/logging.test.js` |
+| Zusätzliche Header und cURL-Reproduktion | `test/extra-headers.test.js` |
 | Markdown-Vergleich (Textfassung, Zeilendiff, Reiter) | `test/markdown-compare.test.js` |
 | Font- und Stilvergleich (Schrift, Größe, Schnitt, Farbe) | `test/style-compare.test.js` |
 | FR4 PDF-Response anzeigen/speichern | `test/fr4-pdf-response.test.js` |
@@ -413,6 +434,22 @@ start.bat
 Ohne diesen Schalter wird bei Erfolg nur eine Zeile geschrieben
 (`POST … -> HTTP 200, 12345 Bytes PDF in 240 ms`).
 
+### Aufruf 1:1 nachstellen (Vergleich mit Postman & Co.)
+
+Log und Diagnose enthalten einen **cURL-Befehl, der den Aufruf exakt reproduziert**, sowie den
+gesendeten Body als Datei (`logs/last-request-body.txt`):
+
+```
+curl -X POST "http://server:8080/generate" -H "Content-Type: text/plain" -H "Accept: */*" \
+  -H "User-Agent: SPAC-PDF-Vergleichstool/1.0" --data-binary "@…\logs\last-request-body.txt" \
+  --output antwort.pdf
+```
+
+Der Befehl ist einzeilig, damit er in `cmd`, PowerShell und Bash gleichermaßen funktioniert.
+Läuft der Aufruf mit einem anderen Werkzeug (z. B. Postman) durch, hier aber nicht, liegt der
+Unterschied in den Headern: Header in Postman anzeigen lassen, mit der obigen Liste vergleichen
+und die fehlenden unter „Zusätzliche Header" ergänzen.
+
 ### Diagnose in der Oberfläche
 
 Dieselben Angaben stehen im aufklappbaren Bereich **„Gesendeter Request (Diagnose)"** unter
@@ -424,6 +461,8 @@ Typische Stellschrauben:
 | Symptom | Ansatzpunkt |
 | --- | --- |
 | HTTP 415 / „Unsupported Media Type" | Content-Type unter „Erweiterte Einstellungen" ändern, z. B. auf `text/plain` (ohne charset), `application/xml` oder `text/xml` |
+| HTTP 401/403, obwohl Postman funktioniert | Fehlender Header. Postman sendet u. a. `User-Agent` und ggf. Schlüssel/Token – unter „Zusätzliche Header" ergänzen |
+| HTTP 406 | `Accept:` (leerer Wert) setzen, um den Header ganz wegzulassen |
 | Umlaute kommen falsch an | `charset=iso-8859-1` im Content-Type setzen |
 | HTTP 400 mit Verweis auf die XML-Struktur | Body in der Diagnose prüfen: Zeile 1 = Vorlagepfad, Zeile 2 leer, ab Zeile 3 die XML ohne Deklaration |
 | Antwort ist HTML statt PDF | Die Fehlermeldung zeigt den Anfang der Antwort – meist eine Fehlerseite des Zielservice |

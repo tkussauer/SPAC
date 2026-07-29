@@ -8,6 +8,7 @@ import { comparePdfs } from './lib/comparePdfs.js';
 import { postToTarget, DEFAULT_CONTENT_TYPE, DEFAULT_TIMEOUT_MS } from './lib/postClient.js';
 import { PdfStore } from './lib/store.js';
 import { logger, DEFAULT_LOG_FILE } from './lib/logger.js';
+import { buildCurlCommand, parseHeaderLines } from './lib/httpHeaders.js';
 import { assertPdf, validateTargetUrl, validateTemplatePath, validateXmlContent } from './lib/validate.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -77,11 +78,13 @@ export function createApp({
    */
   app.post('/api/generate', async (req, res, next) => {
     try {
-      const { targetUrl, templatePath, xmlContent, xmlFileName, referenceId, contentType } = req.body ?? {};
+      const { targetUrl, templatePath, xmlContent, xmlFileName, referenceId, contentType, extraHeaders } =
+        req.body ?? {};
 
       const url = validateTargetUrl(targetUrl);
       const template = validateTemplatePath(templatePath);
       validateXmlContent(xmlContent, xmlFileName || 'Test-XML');
+      const zusatzHeader = parseHeaderLines(extraHeaders);
 
       const reference = referenceId ? store.get(referenceId) : null;
       if (referenceId && !reference) {
@@ -100,23 +103,47 @@ export function createApp({
           targetUrl: url,
           body,
           contentType: typeof contentType === 'string' && contentType.trim() ? contentType.trim() : undefined,
+          extraHeaders: zusatzHeader,
           transport,
         });
       } catch (err) {
         // Bei einem Fehler den kompletten Austausch protokollieren – inklusive
-        // gesendetem Body und Antwort des Zielservice.
+        // gesendetem Body, Antwort des Zielservice und reproduzierbarem cURL-Aufruf.
+        const anfrage = err.exchange?.request ?? { body, bytes: Buffer.byteLength(body, 'utf8') };
+        const bodyDatei = log.saveRequestBody(anfrage.bodyBuffer ?? Buffer.from(body, 'utf8'));
+        const curl = buildCurlCommand({
+          targetUrl: url,
+          headers: anfrage.headers ?? {},
+          bodyFile: bodyDatei ?? 'body.txt',
+        });
+
         log.logExchange({
           level: 'FEHLER',
           targetUrl: url,
           error: err,
-          request: err.exchange?.request ?? { body, bytes: Buffer.byteLength(body, 'utf8') },
+          request: anfrage,
           response: err.exchange?.response ?? null,
+          curl,
         });
+
+        err.details = { ...(err.details ?? {}), curl, bodyFile: bodyDatei };
+        // Auch an den Request-Auszug hängen, damit die Oberfläche ihn mit anzeigt.
+        if (err.details.request) {
+          err.details.request.curl = curl;
+          err.details.request.bodyFile = bodyDatei;
+        }
         throw err;
       }
 
+      const bodyDatei = log.saveRequestBody(result.exchange.request.bodyBuffer);
+      const curl = buildCurlCommand({
+        targetUrl: url,
+        headers: result.requestHeaders,
+        bodyFile: bodyDatei ?? 'body.txt',
+      });
+
       if (logBodies) {
-        log.logExchange({ level: 'ERFOLG', targetUrl: url, ...result.exchange });
+        log.logExchange({ level: 'ERFOLG', targetUrl: url, ...result.exchange, curl });
       } else {
         log.info(
           `POST ${url} -> HTTP ${result.status}, ${result.pdf.length} Bytes PDF in ${result.durationMs} ms ` +
@@ -151,6 +178,8 @@ export function createApp({
           contentType: result.requestContentType,
           encoding: result.requestEncoding,
           headers: result.requestHeaders,
+          curl,
+          bodyFile: bodyDatei,
           bodyBytes: result.requestBytes,
           body: body.length > BODY_PREVIEW_LIMIT ? `${body.slice(0, BODY_PREVIEW_LIMIT)}\n… (gekürzt)` : body,
         },

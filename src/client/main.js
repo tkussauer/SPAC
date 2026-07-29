@@ -19,6 +19,7 @@ const dom = {
   targetUrl: el('target-url'),
   templatePath: el('template-path'),
   contentType: el('content-type'),
+  extraHeaders: el('extra-headers'),
   advanced: el('advanced'),
   tabs: el('tabs'),
   tabPdf: el('tab-pdf'),
@@ -84,6 +85,10 @@ function loadSettings() {
       dom.contentType.value = saved.contentType;
       if (saved.contentType !== dom.contentType.defaultValue) dom.advanced?.setAttribute('open', '');
     }
+    if (typeof saved.extraHeaders === 'string' && saved.extraHeaders.trim()) {
+      dom.extraHeaders.value = saved.extraHeaders;
+      dom.advanced?.setAttribute('open', '');
+    }
     if (typeof saved.showHighlights === 'boolean') dom.toggleHighlights.checked = saved.showHighlights;
     if (typeof saved.onlyDiffLines === 'boolean') dom.toggleOnlyDiff.checked = saved.onlyDiffLines;
     if (TABS.includes(saved.activeTab)) state.activeTab = saved.activeTab;
@@ -100,6 +105,7 @@ function saveSettings() {
         targetUrl: dom.targetUrl.value,
         templatePath: dom.templatePath.value,
         contentType: dom.contentType.value,
+        extraHeaders: dom.extraHeaders.value,
         showHighlights: dom.toggleHighlights.checked,
         onlyDiffLines: dom.toggleOnlyDiff.checked,
         activeTab: state.activeTab,
@@ -243,6 +249,7 @@ async function runComparison({ reason = 'generate' } = {}) {
         xmlFileName: state.xmlFileName,
         referenceId: state.referenceId,
         contentType: dom.contentType.value.trim() || undefined,
+        extraHeaders: dom.extraHeaders.value,
       }),
     });
 
@@ -298,6 +305,11 @@ function renderExchange(request, response) {
     }
   } else {
     lines.push('', '--- ANTWORT ---', 'Keine Antwort erhalten (Verbindungs- oder Zeitfehler).');
+  }
+
+  // Reproduziert den Aufruf exakt – zum Gegenprüfen mit Postman, cURL o. Ä.
+  if (request.curl) {
+    lines.push('', '--- DERSELBE AUFRUF ALS CURL-BEFEHL ---', request.curl);
   }
 
   dom.diagnosticsContent.textContent = lines.join('\n');
@@ -866,6 +878,7 @@ function wireUp() {
     dom.refreshButton.disabled = !canRefresh();
   });
   dom.contentType.addEventListener('input', saveSettings);
+  dom.extraHeaders.addEventListener('input', saveSettings);
 
   // Markierungen ein-/ausblenden (Zustand bleibt erhalten)
   dom.toggleHighlights.addEventListener('change', () => {
