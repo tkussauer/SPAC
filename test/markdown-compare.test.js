@@ -152,7 +152,9 @@ test('Markdown: Die Oberfläche stellt den Vergleich über einen Reiter bereit',
   assert.match(html, /id="toggle-only-diff"/, 'Filter "Nur Abweichungen" fehlt');
 
   const client = await readFile(path.join(root, 'src/client/main.js'), 'utf8');
-  assert.match(client, /setActiveTab\('markdown'\)/, 'Der Reiter schaltet die Ansicht nicht um');
+  assert.match(client, /markdown: dom\.tabMarkdown/, 'Der Reiter ist nicht verdrahtet');
+  assert.match(client, /button\.addEventListener\('click', \(\) => setActiveTab\(name\)\)/, 'Der Reiter schaltet die Ansicht nicht um');
+  assert.match(client, /dom\.markdownPanel\.hidden = aktiv !== 'markdown'/, 'Die Ansicht wird nicht umgeschaltet');
   assert.match(client, /renderMarkdownDiff/, 'Der Markdown-Vergleich wird nicht gerendert');
   assert.match(client, /activeTab: state\.activeTab/, 'Der aktive Reiter wird nicht gespeichert');
 

@@ -109,6 +109,36 @@ Es handelt sich um eine Textfassung, nicht um eine originalgetreue Layout-Umwand
 Tabellenstrukturen, Bilder und Spaltenlayouts gehen dabei verloren – für die Prüfung der
 Layouttreue bleibt der PDF-Reiter zuständig.
 
+### Reiter „Font & Stil"
+
+Der dritte Reiter vergleicht die **Formatierung** statt des Inhalts: Schriftart,
+Schriftgröße, Fettung, Kursivstellung und Textfarbe. Er beantwortet Fälle, die der Textvergleich
+naturgemäß nicht sieht – etwa wenn eine Überschrift plötzlich nicht mehr fett oder in einer
+anderen Farbe gesetzt wird, der Wortlaut aber unverändert bleibt.
+
+**Abweichungen bei gleichem Text** listet Stellen, die inhaltlich übereinstimmen, aber anders
+gesetzt sind:
+
+```
+Seite 1  „Rechnung 4711"   [Schriftart] [Schriftgröße] [Fettung] [Textfarbe]
+         ● Helvetica-Bold 18 pt, fett, #c00000   →   ● Helvetica 14 pt, #000080
+```
+
+Verglichen werden nur Wörter, die der Textvergleich als übereinstimmend erkannt hat – sonst
+ließe sich nicht unterscheiden, ob sich der Text oder nur die Formatierung geändert hat.
+Aufeinanderfolgende Wörter mit derselben Abweichung werden zu einem Eintrag zusammengefasst.
+
+**Verwendete Schriften** stellt das Inventar beider Dokumente gegenüber: jede Kombination aus
+Schriftart, -größe, -schnitt und Farbe mit der Zahl der Wörter je Dokument und dem Status
+(*in beiden*, *nur in der Referenz*, *nur im generierten*, *unterschiedlich häufig*). So fällt
+sofort auf, wenn eine Schrift im generierten Dokument gar nicht mehr vorkommt.
+
+Zur Herkunft der Daten: pdf.js liefert im Textinhalt nur generische Angaben wie „sans-serif".
+Die echten Schriftnamen stehen erst nach dem Auswerten der Operatorliste zur Verfügung, die
+Textfarben ausschließlich dort. Lassen sich die Farben nicht zweifelsfrei den Textstellen
+zuordnen – das kann bei ungewöhnlich aufgebauten PDFs vorkommen –, werden sie **nicht geraten**,
+sondern vom Vergleich ausgenommen; die Oberfläche weist dann darauf hin.
+
 - **Vergleich generieren** – sendet den POST-Request, zeigt das erzeugte PDF und den Vergleich an.
 - **Refresh** – wiederholt denselben POST-Aufruf mit den aktuell eingetragenen Werten und
   aktualisiert Ergebnis und Markierungen (z. B. nachdem die Vorlage auf dem Server geändert wurde).
@@ -135,6 +165,8 @@ src/server/
   lib/diff.js             Wort-Diff (LCS)
   lib/pdfMarkdown.js      Textfassung des PDFs als Markdown
   lib/markdownDiff.js     zeilenweiser Vergleich der Markdown-Fassungen
+  lib/pdfStyle.js         Schriftart, -größe, -schnitt und Textfarbe je Textstelle
+  lib/styleCompare.js     Vergleich der Formatierung + Schriftinventar
   lib/comparePdfs.js      seitenweiser Vergleich + Markierungsboxen (FR5/FR6)
   lib/validate.js         Eingabe- und PDF-Prüfungen (NFR2)
   lib/logger.js           Protokoll nach logs/spac.log (Body + Antwort bei Fehlern)
@@ -300,6 +332,7 @@ sind keine Binärdateien im Repository nötig und es besteht keine Netzwerkabhä
 | FR3 Rohtext-Übertragung (Byte-Ebene, Header, charset) | `test/fr3-raw-body.test.js` |
 | Protokollierung von Request-Body und Antwort im Fehlerfall | `test/logging.test.js` |
 | Markdown-Vergleich (Textfassung, Zeilendiff, Reiter) | `test/markdown-compare.test.js` |
+| Font- und Stilvergleich (Schrift, Größe, Schnitt, Farbe) | `test/style-compare.test.js` |
 | FR4 PDF-Response anzeigen/speichern | `test/fr4-pdf-response.test.js` |
 | FR5 seitenweiser Vergleich | `test/fr5-vergleich.test.js` |
 | FR6 farbliche Hervorhebung (nur im generierten Dokument) | `test/fr6-hervorhebung.test.js` |

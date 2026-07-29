@@ -2,6 +2,7 @@ import { extractPages } from './pdfText.js';
 import { diffTokens, similarity } from './diff.js';
 import { pagesToMarkdown } from './pdfMarkdown.js';
 import { buildLineDiff } from './markdownDiff.js';
+import { compareStyles } from './styleCompare.js';
 
 /**
  * Farbcodes für die Hervorhebung in der UI (FR6).
@@ -152,9 +153,15 @@ export async function comparePdfs(referencePdf, generatedPdf) {
   const generatedMarkdown = pagesToMarkdown(generated.pages);
   const lineDiff = buildLineDiff(referenceMarkdown.lines, generatedMarkdown.lines);
 
+  // Schriftarten, -größen, -schnitte und Textfarben gegenüberstellen.
+  const style = compareStyles(reference.pages, generated.pages, {
+    colorsResolved: reference.colorsResolved !== false && generated.colorsResolved !== false,
+  });
+
   const differingPages = pages.filter((p) => !p.identical);
   return {
     method: 'text-extraction',
+    style,
     markdown: {
       reference: referenceMarkdown.text,
       generated: generatedMarkdown.text,

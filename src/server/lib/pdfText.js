@@ -3,6 +3,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { AppError } from './errors.js';
 import { looksLikePdf } from './validate.js';
+import { extractItemStyles } from './pdfStyle.js';
 
 const require = createRequire(import.meta.url);
 
@@ -51,7 +52,7 @@ export function cumulativeWeights(str) {
  * Zerlegt ein pdf.js-TextItem in einzelne Wörter mit geschätzten Bounding-Boxen.
  * Die Box-Koordinaten sind in PDF-Punkten mit Ursprung oben links.
  */
-export function itemToWords(item, pageHeight) {
+export function itemToWords(item, pageHeight, style = null) {
   const str = item.str ?? '';
   if (str.trim() === '') return [];
 
@@ -81,6 +82,7 @@ export function itemToWords(item, pageHeight) {
         width: round(Math.max((cumulative[end] - cumulative[start]) * unit, 1)),
         height: round(Math.max(height, 1)),
       },
+      ...(style ? { style } : {}),
     });
   }
   return words;
@@ -119,17 +121,22 @@ export async function extractPages(buffer, { label = 'PDF' } = {}) {
   }
 
   const pages = [];
+  let colorsResolved = true;
   try {
     for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber += 1) {
       const page = await doc.getPage(pageNumber);
       const viewport = page.getViewport({ scale: 1 });
       const content = await page.getTextContent();
 
+      // Schriftart, -größe, -schnitt und Farbe je Textelement (für den Stilvergleich).
+      const styleInfo = await extractItemStyles(page, content.items, pdfjs);
+      if (!styleInfo.colorsResolved) colorsResolved = false;
+
       const words = [];
-      for (const item of content.items) {
-        if (typeof item.str !== 'string') continue;
-        words.push(...itemToWords(item, viewport.height));
-      }
+      content.items.forEach((item, index) => {
+        if (typeof item.str !== 'string') return;
+        words.push(...itemToWords(item, viewport.height, styleInfo.styles[index] ?? null));
+      });
 
       pages.push({
         pageNumber,
@@ -144,5 +151,5 @@ export async function extractPages(buffer, { label = 'PDF' } = {}) {
     await doc.destroy?.();
   }
 
-  return { pageCount: pages.length, pages };
+  return { pageCount: pages.length, pages, colorsResolved };
 }

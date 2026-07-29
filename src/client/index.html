@@ -132,6 +132,9 @@
         <button type="button" class="tab" role="tab" id="tab-markdown" aria-controls="markdown-panel" aria-selected="false">
           Markdown-Vergleich
         </button>
+        <button type="button" class="tab" role="tab" id="tab-style" aria-controls="style-panel" aria-selected="false">
+          Font &amp; Stil
+        </button>
       </div>
 
       <!-- Ansichtssteuerung: Markierungen ein-/ausblenden und Legende (FR6) -->
@@ -178,6 +181,31 @@
             <span>Generiertes PDF</span>
           </div>
           <div id="markdown-rows" class="markdown-rows"></div>
+        </div>
+      </section>
+
+      <!-- Font- und Stilvergleich: Schriftart, -größe, -schnitt und Textfarbe -->
+      <section id="style-panel" class="style-panel" role="tabpanel" aria-labelledby="tab-style" hidden>
+        <div class="card style-summary">
+          <span id="style-summary"></span>
+          <span id="style-color-hint" class="hint" hidden>
+            Textfarben konnten in diesem Dokument nicht eindeutig zugeordnet werden und bleiben
+            beim Vergleich unberücksichtigt.
+          </span>
+        </div>
+
+        <div class="card style-section">
+          <h2>Abweichungen bei gleichem Text</h2>
+          <p class="section-hint">
+            Textstellen, die inhaltlich übereinstimmen, aber anders gesetzt sind.
+          </p>
+          <div id="style-deviations" class="style-list"></div>
+        </div>
+
+        <div class="card style-section">
+          <h2>Verwendete Schriften</h2>
+          <p class="section-hint">Alle Kombinationen aus Schriftart, -größe, -schnitt und Farbe.</p>
+          <div class="style-table" id="style-inventory"></div>
         </div>
       </section>
     </main>

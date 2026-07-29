@@ -23,6 +23,12 @@ const dom = {
   tabs: el('tabs'),
   tabPdf: el('tab-pdf'),
   tabMarkdown: el('tab-markdown'),
+  tabStyle: el('tab-style'),
+  stylePanel: el('style-panel'),
+  styleSummary: el('style-summary'),
+  styleColorHint: el('style-color-hint'),
+  styleDeviations: el('style-deviations'),
+  styleInventory: el('style-inventory'),
   markdownPanel: el('markdown-panel'),
   markdownRows: el('markdown-rows'),
   markdownSummary: el('markdown-summary'),
@@ -59,7 +65,9 @@ const state = {
   renderJobs: [],
   /** Markdown-Fassung und Zeilenvergleich des letzten Laufs. */
   markdown: null,
-  /** Aktiver Reiter: 'pdf' oder 'markdown'. */
+  /** Font- und Stilvergleich des letzten Laufs. */
+  style: null,
+  /** Aktiver Reiter: 'pdf', 'markdown' oder 'style'. */
   activeTab: 'pdf',
 };
 
@@ -78,7 +86,7 @@ function loadSettings() {
     }
     if (typeof saved.showHighlights === 'boolean') dom.toggleHighlights.checked = saved.showHighlights;
     if (typeof saved.onlyDiffLines === 'boolean') dom.toggleOnlyDiff.checked = saved.onlyDiffLines;
-    if (saved.activeTab === 'markdown' || saved.activeTab === 'pdf') state.activeTab = saved.activeTab;
+    if (TABS.includes(saved.activeTab)) state.activeTab = saved.activeTab;
   } catch {
     /* Einstellungen sind optional – Fehler hier dürfen die App nicht blockieren. */
   }
@@ -323,7 +331,9 @@ async function renderResult(result) {
     dom.viewControls.hidden = true;
     dom.tabs.hidden = true;
     dom.markdownPanel.hidden = true;
+    dom.stylePanel.hidden = true;
     state.markdown = null;
+    state.style = null;
     dom.viewer.hidden = false;
     dom.viewer.replaceChildren();
     await renderSinglePdf(result.generatedUrl);
@@ -332,6 +342,7 @@ async function renderResult(result) {
 
   renderSummary(result, comparison);
   renderMarkdownDiff(comparison.markdown);
+  renderStyleComparison(comparison.style);
   dom.tabs.hidden = false;
   await renderPages(result, comparison);
   applyActiveTab();
@@ -437,24 +448,163 @@ function textCell(text, backgroundClass, segments) {
   return cell;
 }
 
+// --------------------------------------------------- Font- und Stilvergleich
+
+/** Baut die Ansicht mit Stilabweichungen und Schriftinventar. */
+function renderStyleComparison(style) {
+  state.style = style ?? null;
+  if (!style) {
+    dom.styleDeviations.replaceChildren();
+    dom.styleInventory.replaceChildren();
+    dom.styleSummary.textContent = '';
+    return;
+  }
+
+  const { totals } = style;
+  const arten = Object.entries(totals.byKind)
+    .filter(([, anzahl]) => anzahl > 0)
+    .map(([art, anzahl]) => `${anzahl}× ${art}`);
+
+  dom.styleSummary.textContent = style.identical
+    ? 'Schriftarten, -größen, -schnitte und Farben stimmen überein.'
+    : `${totals.deviations} Stilabweichung(en) auf Seite(n) ${totals.affectedPages.join(', ') || '–'}` +
+      (arten.length > 0 ? ` – ${arten.join(', ')}` : '');
+  dom.styleColorHint.hidden = style.colorsResolved !== false;
+
+  renderStyleDeviations(style.deviations);
+  renderStyleInventory(style.inventory);
+}
+
+function renderStyleDeviations(deviations) {
+  if (!deviations || deviations.length === 0) {
+    const leer = document.createElement('p');
+    leer.className = 'style-empty';
+    leer.textContent = 'Keine Stilabweichungen bei übereinstimmendem Text gefunden.';
+    dom.styleDeviations.replaceChildren(leer);
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  for (const abweichung of deviations) {
+    const eintrag = document.createElement('div');
+    eintrag.className = 'style-entry';
+
+    const kopf = document.createElement('div');
+    kopf.className = 'style-entry-head';
+
+    const seite = document.createElement('span');
+    seite.className = 'style-entry-page';
+    seite.textContent = `Seite ${abweichung.pageNumber}`;
+
+    const text = document.createElement('span');
+    text.className = 'style-entry-text';
+    text.textContent = `„${abweichung.text}"`;
+
+    kopf.append(seite, text);
+    for (const art of abweichung.differences) {
+      const chip = document.createElement('span');
+      chip.className = 'style-chip';
+      chip.textContent = art;
+      kopf.append(chip);
+    }
+
+    const pfeil = document.createElement('span');
+    pfeil.className = 'style-arrow';
+    pfeil.textContent = '→';
+
+    eintrag.append(
+      kopf,
+      styleValue(abweichung.reference, abweichung.referenceDescription, 'Referenz'),
+      pfeil,
+      styleValue(abweichung.generated, abweichung.generatedDescription, 'Generiert')
+    );
+    fragment.append(eintrag);
+  }
+  dom.styleDeviations.replaceChildren(fragment);
+}
+
+function styleValue(style, description, label) {
+  const element = document.createElement('span');
+  element.className = 'style-value';
+  element.title = `${label}: ${description}`;
+  if (style?.color) element.append(colorDot(style.color));
+  element.append(document.createTextNode(description));
+  return element;
+}
+
+function colorDot(color) {
+  const punkt = document.createElement('span');
+  punkt.className = 'color-dot';
+  punkt.style.background = color;
+  punkt.title = color;
+  return punkt;
+}
+
+const INVENTORY_STATUS = {
+  equal: 'in beiden',
+  'only-reference': 'nur in der Referenz',
+  'only-generated': 'nur im generierten',
+  'count-differs': 'unterschiedlich häufig',
+};
+
+function renderStyleInventory(inventory) {
+  const fragment = document.createDocumentFragment();
+  for (const titel of ['Schrift', 'Status', 'Referenz', 'Generiert']) {
+    const kopf = document.createElement('span');
+    kopf.className = 'style-table-head';
+    if (titel === 'Referenz' || titel === 'Generiert') kopf.classList.add('numeric');
+    kopf.textContent = titel;
+    fragment.append(kopf);
+  }
+
+  for (const row of inventory ?? []) {
+    const klasse = row.status === 'equal' ? '' : ` style-row-${row.status}`;
+
+    const name = document.createElement('span');
+    name.className = `style-name${klasse}`;
+    if (row.style?.color) name.append(colorDot(row.style.color));
+    name.append(document.createTextNode(row.description));
+
+    const status = document.createElement('span');
+    status.className = `style-status${klasse}`;
+    status.textContent = INVENTORY_STATUS[row.status] ?? row.status;
+
+    fragment.append(name, status, wordCount(row.reference, klasse), wordCount(row.generated, klasse));
+  }
+
+  dom.styleInventory.replaceChildren(fragment);
+}
+
+function wordCount(seite, klasse) {
+  const zelle = document.createElement('span');
+  zelle.className = `numeric${klasse}`;
+  zelle.textContent = seite ? `${seite.words} Wörter` : '–';
+  if (seite) zelle.title = `Seite(n): ${seite.pages.join(', ')}`;
+  return zelle;
+}
+
 // ------------------------------------------------------------------- Reiter
 
+const TABS = ['pdf', 'markdown', 'style'];
+
 function setActiveTab(tab) {
-  state.activeTab = tab === 'markdown' ? 'markdown' : 'pdf';
+  state.activeTab = TABS.includes(tab) ? tab : 'pdf';
   applyActiveTab();
   saveSettings();
 }
 
 function applyActiveTab() {
-  const markdownAktiv = state.activeTab === 'markdown';
+  const aktiv = state.activeTab;
   const ergebnisVorhanden = !dom.tabs.hidden;
 
-  dom.tabPdf.setAttribute('aria-selected', String(!markdownAktiv));
-  dom.tabMarkdown.setAttribute('aria-selected', String(markdownAktiv));
+  dom.tabPdf.setAttribute('aria-selected', String(aktiv === 'pdf'));
+  dom.tabMarkdown.setAttribute('aria-selected', String(aktiv === 'markdown'));
+  dom.tabStyle.setAttribute('aria-selected', String(aktiv === 'style'));
 
-  dom.viewer.hidden = markdownAktiv || dom.viewer.childElementCount === 0;
-  dom.viewControls.hidden = markdownAktiv || !ergebnisVorhanden || !state.markdown;
-  dom.markdownPanel.hidden = !markdownAktiv || !ergebnisVorhanden;
+  dom.viewer.hidden = aktiv !== 'pdf' || dom.viewer.childElementCount === 0;
+  dom.viewControls.hidden = aktiv !== 'pdf' || !ergebnisVorhanden || !state.markdown;
+  dom.markdownPanel.hidden = aktiv !== 'markdown' || !ergebnisVorhanden;
+  dom.stylePanel.hidden = aktiv !== 'style' || !ergebnisVorhanden;
 }
 
 function renderSummary(result, comparison) {
@@ -724,15 +874,18 @@ function wireUp() {
   });
   applyHighlightVisibility();
 
-  // Reiter: PDF-Vergleich / Markdown-Vergleich
-  dom.tabPdf.addEventListener('click', () => setActiveTab('pdf'));
-  dom.tabMarkdown.addEventListener('click', () => setActiveTab('markdown'));
+  // Reiter: PDF-Vergleich / Markdown-Vergleich / Font & Stil
+  const tabButtons = { pdf: dom.tabPdf, markdown: dom.tabMarkdown, style: dom.tabStyle };
+  for (const [name, button] of Object.entries(tabButtons)) {
+    button.addEventListener('click', () => setActiveTab(name));
+  }
   dom.tabs.addEventListener('keydown', (event) => {
     if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
     event.preventDefault();
-    const ziel = state.activeTab === 'pdf' ? 'markdown' : 'pdf';
+    const richtung = event.key === 'ArrowRight' ? 1 : -1;
+    const ziel = TABS[(TABS.indexOf(state.activeTab) + richtung + TABS.length) % TABS.length];
     setActiveTab(ziel);
-    (ziel === 'pdf' ? dom.tabPdf : dom.tabMarkdown).focus();
+    tabButtons[ziel].focus();
   });
 
   dom.toggleOnlyDiff.addEventListener('change', () => {

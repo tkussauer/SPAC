@@ -374,6 +374,154 @@ button.secondary {
   border-color: #b98900;
 }
 
+/* ------------------------------------------------------- Font- und Stilansicht */
+
+.style-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.style-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.9rem 1.25rem;
+  font-size: 0.92rem;
+}
+
+.style-section h2 {
+  margin: 0 0 0.2rem;
+  font-size: 1.05rem;
+}
+
+.section-hint {
+  margin: 0 0 0.9rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.style-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.style-entry {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+  display: grid;
+  grid-template-columns: minmax(10rem, 1fr) auto minmax(12rem, 1fr);
+  gap: 0.4rem 0.9rem;
+  align-items: center;
+}
+
+.style-entry-head {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.style-entry-text {
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.style-entry-page {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.style-chip {
+  font-size: 0.75rem;
+  padding: 0.08rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(224, 168, 0, 0.18);
+  border: 1px solid #b98900;
+  color: #7a5c00;
+}
+
+.style-value {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.88rem;
+  padding: 0.3rem 0.5rem;
+  border-radius: 6px;
+  background: #f7f9fc;
+  border: 1px solid var(--border);
+}
+
+.style-arrow {
+  color: var(--muted);
+  font-size: 1.1rem;
+  text-align: center;
+}
+
+.color-dot {
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  flex: 0 0 auto;
+}
+
+.style-table {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  gap: 0;
+  font-size: 0.88rem;
+  overflow-x: auto;
+}
+
+.style-table > span {
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.style-table > .style-table-head {
+  font-weight: 600;
+  color: var(--muted);
+  background: #f7f9fc;
+  white-space: nowrap;
+}
+
+.style-table > .numeric {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.style-row-only-reference {
+  background: rgba(229, 72, 77, 0.08);
+}
+
+.style-row-only-generated {
+  background: rgba(26, 127, 75, 0.08);
+}
+
+.style-row-count-differs {
+  background: rgba(224, 168, 0, 0.1);
+}
+
+.style-name {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.style-status {
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.style-empty {
+  padding: 1rem 0.2rem;
+  color: var(--muted);
+}
+
 .view-controls {
   display: flex;
   flex-wrap: wrap;
