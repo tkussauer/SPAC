@@ -52,7 +52,7 @@ export function cumulativeWeights(str) {
  * Zerlegt ein pdf.js-TextItem in einzelne Wörter mit geschätzten Bounding-Boxen.
  * Die Box-Koordinaten sind in PDF-Punkten mit Ursprung oben links.
  */
-export function itemToWords(item, pageHeight, style = null) {
+export function itemToWords(item, pageHeight, style = null, invisible = false) {
   const str = item.str ?? '';
   if (str.trim() === '') return [];
 
@@ -85,6 +85,8 @@ export function itemToWords(item, pageHeight, style = null) {
       ...(style ? { style } : {}),
       // Zeichen aus Symbolschriften sind Piktogramme (Kästchen, Haken), kein Text.
       ...(isSymbolFont(style?.font) ? { symbol: true } : {}),
+      // Text, der nicht gezeichnet wird (z. B. OCR-Textebene unter einem Scan).
+      ...(invisible ? { invisible: true } : {}),
       // Merkmale für das Zusammenführen über Elementgrenzen hinweg
       startsAtItemStart: start === 0,
       endsAtItemEnd: end === str.length && !item.hasEOL,
@@ -137,6 +139,8 @@ function gehoertZusammen(links, rechts) {
   if (!links.endsAtItemEnd || !rechts.startsAtItemStart) return false;
   // Ein Piktogramm gehört nie zum benachbarten Wort.
   if (Boolean(links.symbol) !== Boolean(rechts.symbol)) return false;
+  // Sichtbares und unsichtbares darf nicht zu einem Wort verschmelzen.
+  if (Boolean(links.invisible) !== Boolean(rechts.invisible)) return false;
 
   const hoehe = Math.min(links.box.height, rechts.box.height) || 1;
   // Gleiche Zeile? (y ist die Oberkante; unterschiedliche Schriften weichen leicht ab)
@@ -148,6 +152,20 @@ function gehoertZusammen(links, rechts) {
 
 function round(value) {
   return Math.round(value * 100) / 100;
+}
+
+/**
+ * Liegt die Box vollständig außerhalb des sichtbaren Seitenbereichs?
+ * Eine kleine Toleranz lässt Text am Rand gelten, der nur minimal übersteht.
+ */
+export function liegtAusserhalb(box, viewport, toleranz = 2) {
+  if (!box || !viewport) return false;
+  return (
+    box.x + box.width <= toleranz ||
+    box.y + box.height <= toleranz ||
+    box.x >= viewport.width - toleranz ||
+    box.y >= viewport.height - toleranz
+  );
 }
 
 /**
@@ -232,7 +250,9 @@ export async function extractPages(buffer, { label = 'PDF' } = {}) {
       const rohWorte = [];
       content.items.forEach((item, index) => {
         if (typeof item.str !== 'string') return;
-        rohWorte.push(...itemToWords(item, viewport.height, styleInfo.styles[index] ?? null));
+        rohWorte.push(
+          ...itemToWords(item, viewport.height, styleInfo.styles[index] ?? null, styleInfo.invisible[index] === true)
+        );
       });
 
       // Über Elementgrenzen getrennte Wortteile wieder zusammenführen (Sonderzeichen)
@@ -241,7 +261,12 @@ export async function extractPages(buffer, { label = 'PDF' } = {}) {
       // danach in Lesereihenfolge bringen.
       const words = sortInReadingOrder(
         mergeWordFragments(rohWorte)
-          .map((word) => ({ ...word, text: cleanText(word.text) }))
+          .map((word) => ({
+            ...word,
+            text: cleanText(word.text),
+            // Auch außerhalb des Seitenbereichs liegender Text ist nicht sichtbar.
+            ...(word.invisible || liegtAusserhalb(word.box, viewport) ? { invisible: true } : {}),
+          }))
           .filter((word) => word.text !== '')
       );
 

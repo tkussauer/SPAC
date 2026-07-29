@@ -20,40 +20,133 @@ export function cmykToRgb([c, m, y, k]) {
   return [255 * (1 - Math.min(1, c + k)), 255 * (1 - Math.min(1, m + k)), 255 * (1 - Math.min(1, y + k))];
 }
 
+/** Textrendermodi, bei denen nichts gezeichnet wird (3 = unsichtbar, 7 = nur Beschnitt). */
+const UNSICHTBARE_RENDERMODI = new Set([3, 7]);
+
 /**
- * Liest die Textfarben in der Reihenfolge der Textausgaben aus der Operatorliste.
- * @returns {string[]} Hex-Farbe je Textausgabe-Operation
+ * Liest Farbe, Rendermodus und Deckkraft aus der Operatorliste – **ein Eintrag je
+ * gezeichnetem Zeichen** (ohne Leerraum). Diese Angaben sind Teil des Grafikzustands und
+ * werden von `q`/`Q` gesichert bzw. zurückgesetzt; der Stack bildet das nach.
+ *
+ * Die Zuordnung erfolgt bewusst zeichenweise und nicht je Textausgabe: pdf.js zerlegt eine
+ * einzelne Textausgabe regelmäßig in mehrere Textelemente, sodass die Anzahlen nicht
+ * zusammenpassen. Leerraum bleibt außen vor, weil pdf.js zusätzliche Leerzeichen aus
+ * Positionssprüngen erzeugt, denen kein Zeichen im PDF entspricht.
+ *
+ * @returns {Array<{char:string, state:{color:string, renderMode:number, alpha:number}}>}
  */
-export function collectTextColors(operatorList, OPS) {
-  const farben = [];
-  let aktuell = '#000000';
+export function collectTextRenderStates(operatorList, OPS) {
+  const zustaende = [];
+  let aktuell = { color: '#000000', renderMode: 0, alpha: 1 };
+  const stack = [];
 
   for (let index = 0; index < operatorList.fnArray.length; index += 1) {
     const fn = operatorList.fnArray[index];
     const args = operatorList.argsArray[index];
 
     switch (fn) {
+      case OPS.save:
+        stack.push({ ...aktuell });
+        break;
+      case OPS.restore:
+        if (stack.length > 0) aktuell = stack.pop();
+        break;
       case OPS.setFillRGBColor:
-        aktuell = toHexColor([args[0], args[1], args[2]]);
+        aktuell = { ...aktuell, color: toHexColor([args[0], args[1], args[2]]) };
         break;
       case OPS.setFillGray: {
         const wert = args[0] * 255;
-        aktuell = toHexColor([wert, wert, wert]);
+        aktuell = { ...aktuell, color: toHexColor([wert, wert, wert]) };
         break;
       }
       case OPS.setFillCMYKColor:
-        aktuell = toHexColor(cmykToRgb(args));
+        aktuell = { ...aktuell, color: toHexColor(cmykToRgb(args)) };
         break;
+      case OPS.setTextRenderingMode:
+        aktuell = { ...aktuell, renderMode: Number(args[0]) };
+        break;
+      case OPS.setGState: {
+        // args[0] ist eine Liste aus [Name, Wert]; "ca" ist die Fülldeckkraft.
+        for (const eintrag of args[0] ?? []) {
+          if (Array.isArray(eintrag) && eintrag[0] === 'ca') {
+            aktuell = { ...aktuell, alpha: Number(eintrag[1]) };
+          }
+        }
+        break;
+      }
       case OPS.showText:
       case OPS.showSpacedText:
-        farben.push(aktuell);
+        for (const glyph of args[0] ?? []) {
+          // Zahlen sind Positionssprünge (Kerning) und zeichnen nichts.
+          if (typeof glyph === 'number' || glyph === null) continue;
+          for (const zeichen of String(glyph.unicode ?? '')) {
+            if (/\s/.test(zeichen)) continue;
+            zustaende.push({ char: zeichen, state: aktuell });
+          }
+        }
         break;
       default:
         break;
     }
   }
 
-  return farben;
+  return zustaende;
+}
+
+/** Wird dieser Zustand überhaupt sichtbar gezeichnet? */
+export function isInvisibleState(zustand) {
+  if (!zustand) return false;
+  return UNSICHTBARE_RENDERMODI.has(zustand.renderMode) || zustand.alpha === 0;
+}
+
+/** Wie weit höchstens nach vorn gesucht wird, um ein Textelement im Zeichenstrom zu finden. */
+const MAX_SUCHFENSTER = 5000;
+
+/**
+ * Ordnet jedem Textelement seinen Zeichenzustand zu.
+ *
+ * Die Zeichenfolge aus der Operatorliste und die Textelemente stammen aus derselben Quelle,
+ * decken sich aber nicht eins zu eins: pdf.js zerlegt Ausgaben in mehrere Elemente und lässt
+ * manches weg (z. B. Text außerhalb der Seite), während die Operatorliste alles enthält.
+ * Deshalb wird jedes Element als **zusammenhängende Zeichenfolge** im Strom gesucht;
+ * Übersprungenes gilt als nicht im Textinhalt enthalten.
+ *
+ * Ein Element wird nur akzeptiert, wenn sämtliche Zeichen exakt und ohne Lücke passen –
+ * eine zufällige Fehlzuordnung ist damit praktisch ausgeschlossen. Findet sich ein Element
+ * nicht, wird `null` zurückgegeben und es werden keinerlei Annahmen getroffen.
+ *
+ * @returns {Array<object|null>|null} Zustand je Element oder null, wenn keine Zuordnung möglich ist
+ */
+export function alignStatesToItems(items, stream) {
+  const jeElement = new Array(items.length).fill(null);
+  let position = 0;
+
+  for (let index = 0; index < items.length; index += 1) {
+    const zeichen = [...String(items[index].str ?? '')].filter((z) => !/\s/.test(z));
+    if (zeichen.length === 0) continue;
+
+    let start = -1;
+    const grenze = Math.min(stream.length - zeichen.length, position + MAX_SUCHFENSTER);
+    for (let kandidat = position; kandidat <= grenze; kandidat += 1) {
+      let passt = true;
+      for (let k = 0; k < zeichen.length; k += 1) {
+        if (stream[kandidat + k].char !== zeichen[k]) {
+          passt = false;
+          break;
+        }
+      }
+      if (passt) {
+        start = kandidat;
+        break;
+      }
+    }
+
+    if (start === -1) return null;
+    jeElement[index] = stream[start].state;
+    position = start + zeichen.length;
+  }
+
+  return jeElement;
 }
 
 /** Schriftgröße aus der Textmatrix (berücksichtigt gedrehten/skalierten Text). */
@@ -101,16 +194,16 @@ export async function extractItemStyles(page, items, pdfjs) {
     operatorList = null;
   }
 
-  const farben = operatorList ? collectTextColors(operatorList, pdfjs.OPS) : [];
-  const sichtbareItems = items.filter((item) => typeof item.str === 'string' && item.str.trim() !== '');
-  const farbenPassen = operatorList !== null && farben.length === sichtbareItems.length;
+  const stream = operatorList ? collectTextRenderStates(operatorList, pdfjs.OPS) : [];
+  const zustandJeElement = operatorList ? alignStatesToItems(items, stream) : null;
+  // Ohne belastbare Zuordnung werden weder Farben behauptet noch Inhalte ausgeblendet.
+  const zuordnungPasst = zustandJeElement !== null;
 
   const fontCache = new Map();
   const styles = [];
-  let farbIndex = 0;
+  const invisible = [];
 
-  for (const item of items) {
-    const sichtbar = typeof item.str === 'string' && item.str.trim() !== '';
+  items.forEach((item, itemIndex) => {
 
     let fontInfo = fontCache.get(item.fontName);
     if (fontInfo === undefined) {
@@ -127,16 +220,15 @@ export async function extractItemStyles(page, items, pdfjs) {
       fontCache.set(item.fontName, fontInfo);
     }
 
-    styles.push({
-      ...fontInfo,
-      size: fontSizeFromTransform(item.transform),
-      color: sichtbar && farbenPassen ? farben[farbIndex] : null,
-    });
+    const zustand = zuordnungPasst ? zustandJeElement[itemIndex] : null;
+    const groesse = fontSizeFromTransform(item.transform);
 
-    if (sichtbar) farbIndex += 1;
-  }
+    styles.push({ ...fontInfo, size: groesse, color: zustand?.color ?? null });
+    // Nicht gezeichneter Text: Rendermodus 3/7, Deckkraft 0 oder Schriftgröße 0.
+    invisible.push(isInvisibleState(zustand) || groesse === 0);
+  });
 
-  return { styles, colorsResolved: farbenPassen };
+  return { styles, invisible, colorsResolved: zuordnungPasst };
 }
 
 /** Kurzbeschreibung eines Stils für die Anzeige, z. B. "Helvetica-Bold 14 pt, fett, #c00000". */

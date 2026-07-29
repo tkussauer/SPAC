@@ -49,19 +49,19 @@ export function mergeBoxes(boxes, { gap = 6 } = {}) {
   return merged;
 }
 
-/** Entfernt Piktogramme aus Symbolschriften aus allen Seiten. */
-function withoutSymbols(dokument) {
+/** Entfernt Wörter, auf die das Merkmal zutrifft, aus allen Seiten. */
+function withoutWords(dokument, trifftZu) {
   return {
     ...dokument,
     pages: dokument.pages.map((page) => {
-      const words = page.words.filter((word) => !word.symbol);
+      const words = page.words.filter((word) => !trifftZu(word));
       return { ...page, words, text: words.map((w) => w.text).join(' ') };
     }),
   };
 }
 
-function countSymbolWords(dokument) {
-  return dokument.pages.reduce((sum, page) => sum + page.words.filter((w) => w.symbol).length, 0);
+function countWords(dokument, trifftZu) {
+  return dokument.pages.reduce((sum, page) => sum + page.words.filter(trifftZu).length, 0);
 }
 
 /** Vergleicht eine einzelne Seite (FR5) und liefert die Hervorhebungsboxen (FR6). */
@@ -120,20 +120,35 @@ export function comparePage(referencePage, generatedPage) {
  * @param {Buffer} referencePdf Referenz-PDF (hochgeladen)
  * @param {Buffer} generatedPdf Vom Zielservice geliefertes PDF
  */
-export async function comparePdfs(referencePdf, generatedPdf, { ignoreSymbols = true } = {}) {
+export async function comparePdfs(
+  referencePdf,
+  generatedPdf,
+  { ignoreSymbols = true, ignoreInvisible = true } = {}
+) {
   const [referenceRaw, generatedRaw] = await Promise.all([
     extractPages(referencePdf, { label: 'Das Referenz-PDF' }),
     extractPages(generatedPdf, { label: 'Das generierte PDF' }),
   ]);
 
-  // Piktogramme aus Symbolschriften (Checkbox-Kästchen, Haken) sind kein Text. Ohne
-  // Unicode-Zuordnung liefert die Extraktion dafür den rohen Zeichencode – aus einem
-  // Kästchen wird z. B. ein "A". Steht das Zeichen nur in einem der Dokumente, entstünde
-  // daraus eine gemeldete Abweichung, obwohl der Text identisch ist.
-  const reference = ignoreSymbols ? withoutSymbols(referenceRaw) : referenceRaw;
-  const generated = ignoreSymbols ? withoutSymbols(generatedRaw) : generatedRaw;
-  const symbolWords =
-    countSymbolWords(referenceRaw) + countSymbolWords(generatedRaw);
+  // Zwei Arten von Inhalten, die im Vergleich nichts verloren haben:
+  //
+  //  - Piktogramme aus Symbolschriften (Checkbox-Kästchen, Haken). Ohne Unicode-Zuordnung
+  //    liefert die Extraktion den rohen Zeichencode – aus einem Kästchen wird z. B. ein "A".
+  //  - Text, der gar nicht gezeichnet wird: Rendermodus 3/7, Deckkraft 0, Schriftgröße 0
+  //    oder Text außerhalb des Seitenbereichs (etwa eine OCR-Ebene unter einem Scan).
+  //
+  // Steht so etwas nur in einem der Dokumente, entstünde daraus eine gemeldete Abweichung,
+  // obwohl sich am sichtbaren Inhalt nichts unterscheidet.
+  const istSymbol = (word) => Boolean(word.symbol);
+  const istUnsichtbar = (word) => Boolean(word.invisible);
+  const auszuschliessen = (word) =>
+    (ignoreSymbols && istSymbol(word)) || (ignoreInvisible && istUnsichtbar(word));
+
+  const reference = withoutWords(referenceRaw, auszuschliessen);
+  const generated = withoutWords(generatedRaw, auszuschliessen);
+  const symbolWords = countWords(referenceRaw, istSymbol) + countWords(generatedRaw, istSymbol);
+  const invisibleWords =
+    countWords(referenceRaw, istUnsichtbar) + countWords(generatedRaw, istUnsichtbar);
 
   const pageCount = Math.max(reference.pageCount, generated.pageCount);
   const pages = [];
@@ -187,6 +202,7 @@ export async function comparePdfs(referencePdf, generatedPdf, { ignoreSymbols = 
   return {
     method: 'text-extraction',
     symbolGlyphs: { ignored: ignoreSymbols, count: symbolWords },
+    invisibleText: { ignored: ignoreInvisible, count: invisibleWords },
     style,
     markdown: {
       reference: referenceMarkdown.text,

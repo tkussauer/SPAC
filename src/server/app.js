@@ -194,7 +194,7 @@ export function createApp({
    */
   app.post('/api/generate', async (req, res, next) => {
     try {
-      const { targetUrl, templatePath, xmlContent, xmlFileName, referenceId, contentType, extraHeaders, lineEnding, ignoreSymbols } =
+      const { targetUrl, templatePath, xmlContent, xmlFileName, referenceId, contentType, extraHeaders, lineEnding, ignoreSymbols, ignoreInvisible } =
         req.body ?? {};
 
       const url = validateTargetUrl(targetUrl);
@@ -275,6 +275,7 @@ export function createApp({
         try {
           comparison = await comparePdfs(reference.buffer, result.pdf, {
             ignoreSymbols: ignoreSymbols !== false,
+            ignoreInvisible: ignoreInvisible !== false,
           });
         } catch (err) {
           comparisonError = isAppError(err)

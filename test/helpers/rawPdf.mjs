@@ -4,20 +4,21 @@
  * etwa ein Sonderzeichen, das aus einer anderen Schrift gesetzt wird und
  * dadurch als eigenes Textelement im PDF landet.
  */
-function buildPdf(content, { zweiSchriften = false, mitSymbolschrift = false } = {}) {
+function buildPdf(content, { zweiSchriften = false, mitSymbolschrift = false, mitTransparenz = false } = {}) {
   const objs = [];
   objs[1] = '<< /Type /Catalog /Pages 2 0 R >>';
   objs[2] = '<< /Type /Pages /Kids [3 0 R] /Count 1 >>';
   const fonts = mitSymbolschrift ? '/F1 5 0 R /F3 7 0 R' : zweiSchriften ? '/F1 5 0 R /F2 6 0 R' : '/F1 5 0 R';
   objs[3] =
     `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] ` +
-    `/Resources << /Font << ${fonts} >> >> /Contents 4 0 R >>`;
+    `/Resources << /Font << ${fonts} >> ${mitTransparenz ? '/ExtGState << /GS0 8 0 R >>' : ''} >> /Contents 4 0 R >>`;
   objs[4] = `<< /Length ${content.length} >>\nstream\n${content}\nendstream`;
   objs[5] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>';
   objs[6] = '<< /Type /Font /Subtype /Type1 /BaseFont /Times-Roman /Encoding /WinAnsiEncoding >>';
 
   objs[7] = '<< /Type /Font /Subtype /Type1 /BaseFont /ZapfDingbats >>';
-  const anzahl = mitSymbolschrift ? 7 : zweiSchriften ? 6 : 5;
+  objs[8] = '<< /Type /ExtGState /ca 0 >>';
+  const anzahl = mitTransparenz ? 8 : mitSymbolschrift ? 7 : zweiSchriften ? 6 : 5;
   let pdf = '%PDF-1.4\n';
   const offsets = [];
   for (let i = 1; i <= anzahl; i += 1) {
@@ -112,4 +113,33 @@ export function makeReversedOrderPdf(zeilen) {
     teile.push(`BT /F1 12 Tf 50 ${y} Td (${esc(zeile)}) Tj ET`);
   });
   return buildPdf(teile.join(' '));
+}
+
+/**
+ * PDF mit nicht sichtbaren Inhalten. `varianten` wählt aus:
+ *  - 'renderMode'  : Text mit Rendermodus 3 (wird nicht gezeichnet, z. B. OCR-Ebene)
+ *  - 'alpha'       : Text mit Fülldeckkraft 0
+ *  - 'nullGroesse' : Text mit Schriftgröße 0
+ *  - 'ausserhalb'  : Text außerhalb des Seitenbereichs
+ */
+export function makeInvisibleTextPdf(sichtbareZeilen, varianten = []) {
+  const teile = [];
+  sichtbareZeilen.forEach((zeile, index) => {
+    teile.push(`BT /F1 12 Tf 50 ${780 - index * 16} Td (${esc(zeile)}) Tj ET`);
+  });
+
+  if (varianten.includes('renderMode')) {
+    teile.push('q BT /F1 12 Tf 3 Tr 50 700 Td (UnsichtbarerRenderModus) Tj ET Q');
+  }
+  if (varianten.includes('alpha')) {
+    teile.push('q /GS0 gs BT /F1 12 Tf 50 680 Td (UnsichtbareDeckkraft) Tj ET Q');
+  }
+  if (varianten.includes('nullGroesse')) {
+    teile.push('q BT /F1 0 Tf 50 660 Td (Nullgroesse) Tj ET Q');
+  }
+  if (varianten.includes('ausserhalb')) {
+    teile.push('q BT /F1 12 Tf 50 -400 Td (AusserhalbDerSeite) Tj ET Q');
+  }
+
+  return buildPdf(teile.join(' '), { mitTransparenz: true });
 }

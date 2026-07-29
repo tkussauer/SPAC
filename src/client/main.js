@@ -22,6 +22,7 @@ const dom = {
   extraHeaders: el('extra-headers'),
   lineEnding: el('line-ending'),
   ignoreSymbols: el('ignore-symbols'),
+  ignoreInvisible: el('ignore-invisible'),
   advanced: el('advanced'),
   tabs: el('tabs'),
   tabPdf: el('tab-pdf'),
@@ -107,6 +108,10 @@ function loadSettings() {
       dom.extraHeaders.value = saved.extraHeaders;
       dom.advanced?.setAttribute('open', '');
     }
+    if (typeof saved.ignoreInvisible === 'boolean') {
+      dom.ignoreInvisible.checked = saved.ignoreInvisible;
+      if (!saved.ignoreInvisible) dom.advanced?.setAttribute('open', '');
+    }
     if (typeof saved.ignoreSymbols === 'boolean') {
       dom.ignoreSymbols.checked = saved.ignoreSymbols;
       if (!saved.ignoreSymbols) dom.advanced?.setAttribute('open', '');
@@ -130,6 +135,7 @@ function saveSettings() {
         extraHeaders: dom.extraHeaders.value,
         lineEnding: dom.lineEnding.value,
         ignoreSymbols: dom.ignoreSymbols.checked,
+        ignoreInvisible: dom.ignoreInvisible.checked,
         showHighlights: dom.toggleHighlights.checked,
         onlyDiffLines: dom.toggleOnlyDiff.checked,
         activeTab: state.activeTab,
@@ -276,6 +282,7 @@ async function runComparison({ reason = 'generate' } = {}) {
         extraHeaders: dom.extraHeaders.value,
         lineEnding: dom.lineEnding.value,
         ignoreSymbols: dom.ignoreSymbols.checked,
+        ignoreInvisible: dom.ignoreInvisible.checked,
       }),
     });
 
@@ -805,14 +812,20 @@ function renderSummary(result, comparison) {
   dom.summaryWords.textContent = `${comparison.totals.removedWords} / ${comparison.totals.addedWords}`;
   dom.summaryDuration.textContent = `${result.response.durationMs} ms`;
 
-  // Transparent machen, wenn Symbolzeichen vom Vergleich ausgenommen wurden.
-  const symbole = comparison.symbolGlyphs;
-  const zeigeHinweis = Boolean(symbole?.ignored && symbole.count > 0);
-  dom.summarySymbols.hidden = !zeigeHinweis;
-  if (zeigeHinweis) {
+  // Transparent machen, welche Inhalte vom Vergleich ausgenommen wurden.
+  const ausgenommen = [];
+  if (comparison.symbolGlyphs?.ignored && comparison.symbolGlyphs.count > 0) {
+    ausgenommen.push(`${comparison.symbolGlyphs.count} Symbolzeichen (z. B. Checkbox-Kästchen)`);
+  }
+  if (comparison.invisibleText?.ignored && comparison.invisibleText.count > 0) {
+    ausgenommen.push(`${comparison.invisibleText.count} nicht sichtbare Textstellen`);
+  }
+
+  dom.summarySymbols.hidden = ausgenommen.length === 0;
+  if (ausgenommen.length > 0) {
     dom.summarySymbols.textContent =
-      `${symbole.count} Symbolzeichen (z. B. Checkbox-Kästchen) wurden vom Textvergleich ` +
-      'ausgenommen – sie sind kein Text. Abschaltbar unter „Erweiterte Einstellungen".';
+      `Vom Textvergleich ausgenommen: ${ausgenommen.join(' und ')}. ` +
+      'Abschaltbar unter „Erweiterte Einstellungen".';
   }
 }
 
@@ -1064,6 +1077,7 @@ function wireUp() {
   dom.extraHeaders.addEventListener('input', saveSettings);
   dom.lineEnding.addEventListener('change', saveSettings);
   dom.ignoreSymbols.addEventListener('change', saveSettings);
+  dom.ignoreInvisible.addEventListener('change', saveSettings);
 
   // Markierungen ein-/ausblenden (Zustand bleibt erhalten)
   dom.toggleHighlights.addEventListener('change', () => {

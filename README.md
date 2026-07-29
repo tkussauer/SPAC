@@ -101,6 +101,34 @@ Die Seiten werden auf die tatsächlich verfügbare Spaltenbreite gezeichnet (in 
 daher scharf) und nach einer Größenänderung des Fensters neu gerendert. Zwischen den beiden
 Dokumenten bleibt dadurch nur der Spaltenabstand.
 
+### Nicht sichtbare Inhalte
+
+PDFs enthalten oft Text, der gar nicht gezeichnet wird. Am Bildschirm ist davon nichts zu
+sehen, in der Textextraktion taucht er aber auf – und würde ohne Behandlung als Abweichung
+gemeldet. Erkannt und ausgenommen werden:
+
+| Fall | Typisches Vorkommen |
+| --- | --- |
+| Rendermodus 3 oder 7 | OCR-Textebene unter einem Scan; Text nur als Beschnittpfad |
+| Fülldeckkraft 0 | ausgeblendete Bausteine, Wasserzeichen-Reste |
+| Schriftgröße 0 | Platzhalter und Steuermarken aus Vorlagensystemen |
+| außerhalb des Seitenbereichs | abgeschnittene oder geparkte Inhalte |
+
+Rendermodus, Deckkraft und Farbe stehen nur in der Operatorliste des PDFs, nicht im
+extrahierten Text. Beide Quellen decken sich nicht eins zu eins: pdf.js zerlegt Textausgaben
+in mehrere Elemente und lässt manches weg. Die Zuordnung sucht deshalb jedes Textelement als
+**zusammenhängende Zeichenfolge** im Zeichenstrom der Operatorliste. Passt ein Element nicht
+exakt, wird die Zuordnung verworfen – dann gilt sämtlicher Text als sichtbar. Lieber nichts
+ausblenden als das Falsche.
+
+Abschaltbar unter „Erweiterte Einstellungen" → *Nicht sichtbare Inhalte ignorieren*.
+Das Ergebnis weist aus, wie viele Stellen betroffen waren.
+
+**Nicht erkannt** wird Text, der von einem anderen Element verdeckt wird (etwa weiße Schrift
+auf weißem Grund oder Text unter einem Bild). Das ließe sich nur durch tatsächliches Rendern
+und Pixelvergleich feststellen; eine Farbheuristik würde weiße Schrift auf farbigem Kasten
+fälschlich ausblenden.
+
 ### Checkboxen und andere Symbolzeichen
 
 Kästchen, Haken und Pfeile stammen in PDFs aus Symbolschriften (Wingdings, ZapfDingbats,
@@ -223,7 +251,7 @@ src/server/
   lib/diff.js             Wort-Diff (LCS)
   lib/pdfMarkdown.js      Textfassung des PDFs als Markdown
   lib/markdownDiff.js     zeilenweiser Vergleich der Markdown-Fassungen
-  lib/pdfStyle.js         Schriftart, -größe, -schnitt und Textfarbe je Textstelle
+  lib/pdfStyle.js         Schriftart, -größe, -schnitt, Farbe und Sichtbarkeit je Textstelle
   lib/styleCompare.js     Vergleich der Formatierung + Schriftinventar
   lib/comparePdfs.js      seitenweiser Vergleich + Markierungsboxen (FR5/FR6)
   lib/validate.js         Eingabe- und PDF-Prüfungen (NFR2)
@@ -412,6 +440,7 @@ sind keine Binärdateien im Repository nötig und es besteht keine Netzwerkabhä
 | Aufzeichnung und Vergleich einer Fremd-Anfrage (Postman) | `test/capture-compare.test.js` |
 | Abweichend kodierte Sonderzeichen | `test/sonderzeichen.test.js` |
 | Symbolzeichen (Checkboxen) im Textvergleich | `test/symbolzeichen.test.js` |
+| Nicht sichtbare Inhalte | `test/unsichtbare-inhalte.test.js` |
 | Lesereihenfolge unabhängig von der Zeichenreihenfolge | `test/lesereihenfolge.test.js` |
 | Markdown-Vergleich (Textfassung, Zeilendiff, Reiter) | `test/markdown-compare.test.js` |
 | Font- und Stilvergleich (Schrift, Größe, Schnitt, Farbe) | `test/style-compare.test.js` |
