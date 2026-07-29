@@ -49,6 +49,21 @@ export function mergeBoxes(boxes, { gap = 6 } = {}) {
   return merged;
 }
 
+/** Entfernt Piktogramme aus Symbolschriften aus allen Seiten. */
+function withoutSymbols(dokument) {
+  return {
+    ...dokument,
+    pages: dokument.pages.map((page) => {
+      const words = page.words.filter((word) => !word.symbol);
+      return { ...page, words, text: words.map((w) => w.text).join(' ') };
+    }),
+  };
+}
+
+function countSymbolWords(dokument) {
+  return dokument.pages.reduce((sum, page) => sum + page.words.filter((w) => w.symbol).length, 0);
+}
+
 /** Vergleicht eine einzelne Seite (FR5) und liefert die Hervorhebungsboxen (FR6). */
 export function comparePage(referencePage, generatedPage) {
   const refWords = referencePage?.words ?? [];
@@ -105,11 +120,20 @@ export function comparePage(referencePage, generatedPage) {
  * @param {Buffer} referencePdf Referenz-PDF (hochgeladen)
  * @param {Buffer} generatedPdf Vom Zielservice geliefertes PDF
  */
-export async function comparePdfs(referencePdf, generatedPdf) {
-  const [reference, generated] = await Promise.all([
+export async function comparePdfs(referencePdf, generatedPdf, { ignoreSymbols = true } = {}) {
+  const [referenceRaw, generatedRaw] = await Promise.all([
     extractPages(referencePdf, { label: 'Das Referenz-PDF' }),
     extractPages(generatedPdf, { label: 'Das generierte PDF' }),
   ]);
+
+  // Piktogramme aus Symbolschriften (Checkbox-Kästchen, Haken) sind kein Text. Ohne
+  // Unicode-Zuordnung liefert die Extraktion dafür den rohen Zeichencode – aus einem
+  // Kästchen wird z. B. ein "A". Steht das Zeichen nur in einem der Dokumente, entstünde
+  // daraus eine gemeldete Abweichung, obwohl der Text identisch ist.
+  const reference = ignoreSymbols ? withoutSymbols(referenceRaw) : referenceRaw;
+  const generated = ignoreSymbols ? withoutSymbols(generatedRaw) : generatedRaw;
+  const symbolWords =
+    countSymbolWords(referenceRaw) + countSymbolWords(generatedRaw);
 
   const pageCount = Math.max(reference.pageCount, generated.pageCount);
   const pages = [];
@@ -162,6 +186,7 @@ export async function comparePdfs(referencePdf, generatedPdf) {
   const differingPages = pages.filter((p) => !p.identical);
   return {
     method: 'text-extraction',
+    symbolGlyphs: { ignored: ignoreSymbols, count: symbolWords },
     style,
     markdown: {
       reference: referenceMarkdown.text,

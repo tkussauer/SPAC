@@ -101,6 +101,27 @@ Die Seiten werden auf die tatsächlich verfügbare Spaltenbreite gezeichnet (in 
 daher scharf) und nach einer Größenänderung des Fensters neu gerendert. Zwischen den beiden
 Dokumenten bleibt dadurch nur der Spaltenabstand.
 
+### Checkboxen und andere Symbolzeichen
+
+Kästchen, Haken und Pfeile stammen in PDFs aus Symbolschriften (Wingdings, ZapfDingbats,
+Webdings …). Diesen Zeichen fehlt die Unicode-Zuordnung, weshalb die Textextraktion den rohen
+Zeichencode liefert – aus einem Checkbox-Kästchen wird so ein `A`:
+
+```
+Referenz  : A einmalig A gelegentlich A bis zu einer Woche A 2-3 Monate
+Generiert :   einmalig   gelegentlich   bis zu einer Woche   2-3 Monate
+```
+
+Enthält nur eines der Dokumente diese Zeichen, wären das lauter gemeldete Abweichungen,
+obwohl der Text identisch ist. Die Anwendung erkennt solche Zeichen an der Schriftart und
+**nimmt sie vom Textvergleich aus** – in beiden Dokumenten, damit der Vergleich symmetrisch
+bleibt. Das Ergebnis weist aus, wie viele Zeichen betroffen waren.
+
+Abschaltbar unter „Erweiterte Einstellungen" → *Symbolzeichen beim Textvergleich ignorieren*.
+Dann zählen die Kästchen wieder als Text – sinnvoll, wenn gerade deren Vorhandensein geprüft
+werden soll. Unabhängig davon bleiben die Kästchen in der **PDF-Ansicht sichtbar**; ausgenommen
+sind sie nur vom Text- und Markdown-Vergleich.
+
 ### Reiter „Markdown-Vergleich"
 
 Neben der PDF-Ansicht gibt es einen zweiten Reiter: Beide Dokumente werden in eine
@@ -377,6 +398,7 @@ sind keine Binärdateien im Repository nötig und es besteht keine Netzwerkabhä
 | Zusätzliche Header und cURL-Reproduktion | `test/extra-headers.test.js` |
 | Aufzeichnung und Vergleich einer Fremd-Anfrage (Postman) | `test/capture-compare.test.js` |
 | Abweichend kodierte Sonderzeichen | `test/sonderzeichen.test.js` |
+| Symbolzeichen (Checkboxen) im Textvergleich | `test/symbolzeichen.test.js` |
 | Markdown-Vergleich (Textfassung, Zeilendiff, Reiter) | `test/markdown-compare.test.js` |
 | Font- und Stilvergleich (Schrift, Größe, Schnitt, Farbe) | `test/style-compare.test.js` |
 | FR4 PDF-Response anzeigen/speichern | `test/fr4-pdf-response.test.js` |

@@ -86,6 +86,17 @@
             </span>
           </label>
 
+          <label class="toggle">
+            <input type="checkbox" id="ignore-symbols" checked />
+            <span>Symbolzeichen beim Textvergleich ignorieren</span>
+          </label>
+          <span class="hint">
+            Kästchen und Haken aus Symbolschriften (Wingdings, ZapfDingbats …) haben keine
+            Unicode-Zuordnung und erscheinen im extrahierten Text als zufällige Buchstaben –
+            aus einer Checkbox wird etwa ein <code>A</code>. Steht das Zeichen nur in einem
+            der Dokumente, wäre das sonst eine gemeldete Abweichung.
+          </span>
+
           <label class="field">
             <span class="field-label">Zeilenenden im Body</span>
             <select id="line-ending" name="lineEnding">
@@ -146,6 +157,7 @@
           <li>Abweichende Wörter (fehlend / abweichend): <strong id="summary-words"></strong></li>
           <li>Antwortzeit des Zielservice: <strong id="summary-duration"></strong></li>
         </ul>
+        <p id="summary-symbols" class="hint" hidden></p>
       </section>
 
       <!-- Findet den Unterschied zu einem Aufruf, der mit einem anderen Werkzeug funktioniert -->

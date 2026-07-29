@@ -3,7 +3,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { AppError } from './errors.js';
 import { looksLikePdf } from './validate.js';
-import { extractItemStyles } from './pdfStyle.js';
+import { extractItemStyles, isSymbolFont } from './pdfStyle.js';
 
 const require = createRequire(import.meta.url);
 
@@ -83,6 +83,8 @@ export function itemToWords(item, pageHeight, style = null) {
         height: round(Math.max(height, 1)),
       },
       ...(style ? { style } : {}),
+      // Zeichen aus Symbolschriften sind Piktogramme (Kästchen, Haken), kein Text.
+      ...(isSymbolFont(style?.font) ? { symbol: true } : {}),
       // Merkmale für das Zusammenführen über Elementgrenzen hinweg
       startsAtItemStart: start === 0,
       endsAtItemEnd: end === str.length && !item.hasEOL,
@@ -133,6 +135,8 @@ export function mergeWordFragments(words) {
 
 function gehoertZusammen(links, rechts) {
   if (!links.endsAtItemEnd || !rechts.startsAtItemStart) return false;
+  // Ein Piktogramm gehört nie zum benachbarten Wort.
+  if (Boolean(links.symbol) !== Boolean(rechts.symbol)) return false;
 
   const hoehe = Math.min(links.box.height, rechts.box.height) || 1;
   // Gleiche Zeile? (y ist die Oberkante; unterschiedliche Schriften weichen leicht ab)

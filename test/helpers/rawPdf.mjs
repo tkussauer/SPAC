@@ -4,11 +4,11 @@
  * etwa ein Sonderzeichen, das aus einer anderen Schrift gesetzt wird und
  * dadurch als eigenes Textelement im PDF landet.
  */
-function buildPdf(content, { zweiSchriften = false } = {}) {
+function buildPdf(content, { zweiSchriften = false, mitSymbolschrift = false } = {}) {
   const objs = [];
   objs[1] = '<< /Type /Catalog /Pages 2 0 R >>';
   objs[2] = '<< /Type /Pages /Kids [3 0 R] /Count 1 >>';
-  const fonts = zweiSchriften ? '/F1 5 0 R /F2 6 0 R' : '/F1 5 0 R';
+  const fonts = mitSymbolschrift ? '/F1 5 0 R /F3 7 0 R' : zweiSchriften ? '/F1 5 0 R /F2 6 0 R' : '/F1 5 0 R';
   objs[3] =
     `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] ` +
     `/Resources << /Font << ${fonts} >> >> /Contents 4 0 R >>`;
@@ -16,7 +16,8 @@ function buildPdf(content, { zweiSchriften = false } = {}) {
   objs[5] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>';
   objs[6] = '<< /Type /Font /Subtype /Type1 /BaseFont /Times-Roman /Encoding /WinAnsiEncoding >>';
 
-  const anzahl = zweiSchriften ? 6 : 5;
+  objs[7] = '<< /Type /Font /Subtype /Type1 /BaseFont /ZapfDingbats >>';
+  const anzahl = mitSymbolschrift ? 7 : zweiSchriften ? 6 : 5;
   let pdf = '%PDF-1.4\n';
   const offsets = [];
   for (let i = 1; i <= anzahl; i += 1) {
@@ -59,4 +60,21 @@ export function makeSplitCharPdf() {
 /** PDF mit frei vorgegebenem Inhaltsstrom (zwei Schriften verfügbar: /F1, /F2). */
 export function makeRawTextPdf(content) {
   return buildPdf(content, { zweiSchriften: true });
+}
+
+/**
+ * PDF mit Checkbox-Kästchen aus einer Symbolschrift (ZapfDingbats). Die Zeichen haben
+ * keine Unicode-Zuordnung; die Textextraktion liefert dafür den rohen Zeichencode – aus
+ * dem Kästchen wird ein "A". Genau so entstehen Zeilen wie
+ * "A einmalig A gelegentlich A bis zu einer Woche".
+ */
+export function makeCheckboxPdf(optionen, { mitKaestchen = true } = {}) {
+  const teile = ['BT 50 780 Td'];
+  optionen.forEach((option, index) => {
+    if (index > 0) teile.push('/F1 12 Tf ( ) Tj');
+    if (mitKaestchen) teile.push('/F3 12 Tf (A) Tj /F1 12 Tf ( ) Tj');
+    teile.push(`/F1 12 Tf (${esc(option)}) Tj`);
+  });
+  teile.push('ET');
+  return buildPdf(teile.join(' '), { mitSymbolschrift: true });
 }

@@ -21,6 +21,7 @@ const dom = {
   contentType: el('content-type'),
   extraHeaders: el('extra-headers'),
   lineEnding: el('line-ending'),
+  ignoreSymbols: el('ignore-symbols'),
   advanced: el('advanced'),
   tabs: el('tabs'),
   tabPdf: el('tab-pdf'),
@@ -64,6 +65,7 @@ const dom = {
   summaryDiffPages: el('summary-diff-pages'),
   summaryWords: el('summary-words'),
   summaryDuration: el('summary-duration'),
+  summarySymbols: el('summary-symbols'),
   viewer: el('viewer'),
 };
 
@@ -105,6 +107,10 @@ function loadSettings() {
       dom.extraHeaders.value = saved.extraHeaders;
       dom.advanced?.setAttribute('open', '');
     }
+    if (typeof saved.ignoreSymbols === 'boolean') {
+      dom.ignoreSymbols.checked = saved.ignoreSymbols;
+      if (!saved.ignoreSymbols) dom.advanced?.setAttribute('open', '');
+    }
     if (typeof saved.showHighlights === 'boolean') dom.toggleHighlights.checked = saved.showHighlights;
     if (typeof saved.onlyDiffLines === 'boolean') dom.toggleOnlyDiff.checked = saved.onlyDiffLines;
     if (TABS.includes(saved.activeTab)) state.activeTab = saved.activeTab;
@@ -123,6 +129,7 @@ function saveSettings() {
         contentType: dom.contentType.value,
         extraHeaders: dom.extraHeaders.value,
         lineEnding: dom.lineEnding.value,
+        ignoreSymbols: dom.ignoreSymbols.checked,
         showHighlights: dom.toggleHighlights.checked,
         onlyDiffLines: dom.toggleOnlyDiff.checked,
         activeTab: state.activeTab,
@@ -268,6 +275,7 @@ async function runComparison({ reason = 'generate' } = {}) {
         contentType: dom.contentType.value.trim() || undefined,
         extraHeaders: dom.extraHeaders.value,
         lineEnding: dom.lineEnding.value,
+        ignoreSymbols: dom.ignoreSymbols.checked,
       }),
     });
 
@@ -796,6 +804,16 @@ function renderSummary(result, comparison) {
     : 'keine';
   dom.summaryWords.textContent = `${comparison.totals.removedWords} / ${comparison.totals.addedWords}`;
   dom.summaryDuration.textContent = `${result.response.durationMs} ms`;
+
+  // Transparent machen, wenn Symbolzeichen vom Vergleich ausgenommen wurden.
+  const symbole = comparison.symbolGlyphs;
+  const zeigeHinweis = Boolean(symbole?.ignored && symbole.count > 0);
+  dom.summarySymbols.hidden = !zeigeHinweis;
+  if (zeigeHinweis) {
+    dom.summarySymbols.textContent =
+      `${symbole.count} Symbolzeichen (z. B. Checkbox-Kästchen) wurden vom Textvergleich ` +
+      'ausgenommen – sie sind kein Text. Abschaltbar unter „Erweiterte Einstellungen".';
+  }
 }
 
 async function loadPdf(url) {
@@ -1045,6 +1063,7 @@ function wireUp() {
   dom.contentType.addEventListener('input', saveSettings);
   dom.extraHeaders.addEventListener('input', saveSettings);
   dom.lineEnding.addEventListener('change', saveSettings);
+  dom.ignoreSymbols.addEventListener('change', saveSettings);
 
   // Markierungen ein-/ausblenden (Zustand bleibt erhalten)
   dom.toggleHighlights.addEventListener('change', () => {

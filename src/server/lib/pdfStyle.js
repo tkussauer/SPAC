@@ -68,6 +68,22 @@ export function normalizeFontName(name) {
 }
 
 /**
+ * Bekannte Symbol- und Zeichensatzschriften. Zeichen aus diesen Schriften sind keine
+ * Buchstaben, sondern Piktogramme (Kästchen, Haken, Pfeile). Da ihnen meist eine
+ * Unicode-Zuordnung fehlt, liefert die Textextraktion den rohen Zeichencode – aus einem
+ * Checkbox-Kästchen wird so ein "A".
+ */
+const SYMBOL_FONTS = /wingdings|webdings|dingbats|marlett|monotype ?sorts/i;
+const SYMBOL_FAMILY = /(^|[+\-_ ])symbol(mt)?([-_ ,]|$)/i;
+
+/** Erkennt Schriften, deren "Text" in Wahrheit Piktogramme sind. */
+export function isSymbolFont(name) {
+  if (typeof name !== 'string' || name === '') return false;
+  const bereinigt = normalizeFontName(name);
+  return SYMBOL_FONTS.test(bereinigt) || SYMBOL_FAMILY.test(bereinigt);
+}
+
+/**
  * Ermittelt die Stilangaben aller Textelemente einer Seite.
  *
  * Farben werden nur dann zugeordnet, wenn die Zahl der Textausgaben exakt zur Zahl der
