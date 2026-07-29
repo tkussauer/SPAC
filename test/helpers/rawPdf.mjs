@@ -78,3 +78,38 @@ export function makeCheckboxPdf(optionen, { mitKaestchen = true } = {}) {
   teile.push('ET');
   return buildPdf(teile.join(' '), { mitSymbolschrift: true });
 }
+
+/**
+ * Wie makeCheckboxPdf, zeichnet die Kästchen aber in einem eigenen Durchgang – erst alle
+ * Kästchen, dann alle Beschriftungen. Genau so arbeiten viele Formulargeneratoren, wodurch
+ * die Zeichenreihenfolge im PDF nicht der Lesereihenfolge entspricht.
+ */
+export function makeCheckboxPdfSeparatePass(optionen) {
+  const teile = [];
+  let x = 50;
+  const positionen = [];
+  for (const option of optionen) {
+    positionen.push({ option, x });
+    x += 12 + option.length * 6.7 + 8;
+  }
+
+  // 1. Durchgang: nur die Kästchen
+  for (const { x: px } of positionen) {
+    teile.push(`BT /F3 12 Tf ${px} 780 Td (A) Tj ET`);
+  }
+  // 2. Durchgang: nur die Beschriftungen
+  for (const { option, x: px } of positionen) {
+    teile.push(`BT /F1 12 Tf ${px + 12} 780 Td (${esc(option)}) Tj ET`);
+  }
+  return buildPdf(teile.join(' '), { mitSymbolschrift: true });
+}
+
+/** Dieselben Zeilen, aber in umgekehrter Zeichenreihenfolge ausgegeben. */
+export function makeReversedOrderPdf(zeilen) {
+  const teile = [];
+  [...zeilen].reverse().forEach((zeile, index) => {
+    const y = 780 - (zeilen.length - 1 - index) * 16;
+    teile.push(`BT /F1 12 Tf 50 ${y} Td (${esc(zeile)}) Tj ET`);
+  });
+  return buildPdf(teile.join(' '));
+}

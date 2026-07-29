@@ -122,6 +122,19 @@ Dann zählen die Kästchen wieder als Text – sinnvoll, wenn gerade deren Vorha
 werden soll. Unabhängig davon bleiben die Kästchen in der **PDF-Ansicht sichtbar**; ausgenommen
 sind sie nur vom Text- und Markdown-Vergleich.
 
+### Zeichenreihenfolge im PDF
+
+pdf.js liefert den Text in der Reihenfolge, in der das PDF ihn **zeichnet** – und die muss
+nicht der Lesereihenfolge entsprechen. Formulargeneratoren setzen etwa erst alle
+Checkbox-Kästchen und danach alle Beschriftungen; ein anderes Werkzeug mischt beides. Der
+Inhalt ist gleich, die Reihenfolge der Textelemente nicht.
+
+Die Anwendung sortiert die Wörter deshalb nach dem Zusammenführen in Lesereihenfolge
+(zeilenweise von oben nach unten, innerhalb einer Zeile von links nach rechts). Ohne diese
+Normalisierung meldete der visuelle Vergleich Abweichungen, während der Markdown-Vergleich –
+der ohnehin nach Position gruppiert – nichts fand. Beide Ansichten kommen jetzt zwingend zum
+selben Ergebnis.
+
 ### Reiter „Markdown-Vergleich"
 
 Neben der PDF-Ansicht gibt es einen zweiten Reiter: Beide Dokumente werden in eine
@@ -399,6 +412,7 @@ sind keine Binärdateien im Repository nötig und es besteht keine Netzwerkabhä
 | Aufzeichnung und Vergleich einer Fremd-Anfrage (Postman) | `test/capture-compare.test.js` |
 | Abweichend kodierte Sonderzeichen | `test/sonderzeichen.test.js` |
 | Symbolzeichen (Checkboxen) im Textvergleich | `test/symbolzeichen.test.js` |
+| Lesereihenfolge unabhängig von der Zeichenreihenfolge | `test/lesereihenfolge.test.js` |
 | Markdown-Vergleich (Textfassung, Zeilendiff, Reiter) | `test/markdown-compare.test.js` |
 | Font- und Stilvergleich (Schrift, Größe, Schnitt, Farbe) | `test/style-compare.test.js` |
 | FR4 PDF-Response anzeigen/speichern | `test/fr4-pdf-response.test.js` |

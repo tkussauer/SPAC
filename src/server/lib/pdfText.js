@@ -151,6 +151,34 @@ function round(value) {
 }
 
 /**
+ * Bringt die Wörter in Lesereihenfolge (zeilenweise von oben nach unten, innerhalb einer
+ * Zeile von links nach rechts).
+ *
+ * pdf.js liefert die Wörter in der Reihenfolge, in der das PDF sie zeichnet – und die muss
+ * nicht der Lesereihenfolge entsprechen. Werden etwa Checkbox-Kästchen in einem eigenen
+ * Durchgang gesetzt, steht im einen Dokument erst die untere, dann die obere Zeile. Ohne
+ * Normalisierung meldet der Wortvergleich dann Abweichungen, obwohl der Inhalt identisch
+ * ist – während der Markdown-Vergleich, der ohnehin nach Position gruppiert, nichts findet.
+ */
+export function sortInReadingOrder(words) {
+  const zeilen = [];
+
+  for (const word of [...words].sort((a, b) => a.box.y - b.box.y || a.box.x - b.box.x)) {
+    const toleranz = Math.max(word.box.height * 0.5, 2);
+    const zeile = zeilen.find((kandidat) => Math.abs(kandidat.y - word.box.y) <= toleranz);
+    if (zeile) {
+      zeile.words.push(word);
+    } else {
+      zeilen.push({ y: word.box.y, words: [word] });
+    }
+  }
+
+  return zeilen
+    .sort((a, b) => a.y - b.y)
+    .flatMap((zeile) => zeile.words.sort((a, b) => a.box.x - b.box.x));
+}
+
+/**
  * Unsichtbare Steuerzeichen (weiches Trennzeichen, Zero-Width-Zeichen, BOM) entfernen und
  * die Schreibweise vereinheitlichen (NFC). Ohne die Normalisierung gilt ein zerlegtes
  * "a" + Trema nicht als dasselbe Zeichen wie ein zusammengesetztes "ä".
@@ -209,9 +237,13 @@ export async function extractPages(buffer, { label = 'PDF' } = {}) {
 
       // Über Elementgrenzen getrennte Wortteile wieder zusammenführen (Sonderzeichen)
       // und unsichtbare Steuerzeichen entfernen.
-      const words = mergeWordFragments(rohWorte)
-        .map((word) => ({ ...word, text: cleanText(word.text) }))
-        .filter((word) => word.text !== '');
+      // Reihenfolge: erst zusammenführen (dafür zählt die Zeichenreihenfolge),
+      // danach in Lesereihenfolge bringen.
+      const words = sortInReadingOrder(
+        mergeWordFragments(rohWorte)
+          .map((word) => ({ ...word, text: cleanText(word.text) }))
+          .filter((word) => word.text !== '')
+      );
 
       pages.push({
         pageNumber,
