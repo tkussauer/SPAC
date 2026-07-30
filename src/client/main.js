@@ -23,6 +23,10 @@ const dom = {
   lineEnding: el('line-ending'),
   ignoreSymbols: el('ignore-symbols'),
   ignoreInvisible: el('ignore-invisible'),
+  ignoreHeaderFooter: el('ignore-header-footer'),
+  headerFooterFields: el('header-footer-fields'),
+  headerMm: el('header-mm'),
+  footerMm: el('footer-mm'),
   advanced: el('advanced'),
   tabs: el('tabs'),
   tabPdf: el('tab-pdf'),
@@ -116,6 +120,12 @@ function loadSettings() {
       dom.ignoreSymbols.checked = saved.ignoreSymbols;
       if (!saved.ignoreSymbols) dom.advanced?.setAttribute('open', '');
     }
+    if (typeof saved.ignoreHeaderFooter === 'boolean') {
+      dom.ignoreHeaderFooter.checked = saved.ignoreHeaderFooter;
+      if (saved.ignoreHeaderFooter) dom.advanced?.setAttribute('open', '');
+    }
+    if (saved.headerMm !== undefined && saved.headerMm !== '') dom.headerMm.value = saved.headerMm;
+    if (saved.footerMm !== undefined && saved.footerMm !== '') dom.footerMm.value = saved.footerMm;
     if (typeof saved.showHighlights === 'boolean') dom.toggleHighlights.checked = saved.showHighlights;
     if (typeof saved.onlyDiffLines === 'boolean') dom.toggleOnlyDiff.checked = saved.onlyDiffLines;
     if (TABS.includes(saved.activeTab)) state.activeTab = saved.activeTab;
@@ -136,6 +146,9 @@ function saveSettings() {
         lineEnding: dom.lineEnding.value,
         ignoreSymbols: dom.ignoreSymbols.checked,
         ignoreInvisible: dom.ignoreInvisible.checked,
+        ignoreHeaderFooter: dom.ignoreHeaderFooter.checked,
+        headerMm: dom.headerMm.value,
+        footerMm: dom.footerMm.value,
         showHighlights: dom.toggleHighlights.checked,
         onlyDiffLines: dom.toggleOnlyDiff.checked,
         activeTab: state.activeTab,
@@ -283,6 +296,9 @@ async function runComparison({ reason = 'generate' } = {}) {
         lineEnding: dom.lineEnding.value,
         ignoreSymbols: dom.ignoreSymbols.checked,
         ignoreInvisible: dom.ignoreInvisible.checked,
+        ignoreHeaderFooter: dom.ignoreHeaderFooter.checked,
+        headerMm: Number(dom.headerMm.value),
+        footerMm: Number(dom.footerMm.value),
       }),
     });
 
@@ -820,6 +836,9 @@ function renderSummary(result, comparison) {
   if (comparison.invisibleText?.ignored && comparison.invisibleText.count > 0) {
     ausgenommen.push(`${comparison.invisibleText.count} nicht sichtbare Textstellen`);
   }
+  if (comparison.headerFooter?.ignored && comparison.headerFooter.count > 0) {
+    ausgenommen.push(`${comparison.headerFooter.count} Wörter in Kopf-/Fußzeile`);
+  }
 
   dom.summarySymbols.hidden = ausgenommen.length === 0;
   if (ausgenommen.length > 0) {
@@ -911,6 +930,14 @@ async function runRenderJobs(jobs) {
 /** Blendet die Markierungen ein oder aus, ohne die Seiten neu zu zeichnen. */
 function applyHighlightVisibility() {
   dom.viewer.classList.toggle('highlights-hidden', !dom.toggleHighlights.checked);
+}
+
+/** Graut die mm-Felder aus, solange die Kopf-/Fußzeilen-Option nicht aktiv ist. */
+function applyHeaderFooterState() {
+  const aktiv = dom.ignoreHeaderFooter.checked;
+  dom.headerFooterFields.dataset.disabled = String(!aktiv);
+  dom.headerMm.disabled = !aktiv;
+  dom.footerMm.disabled = !aktiv;
 }
 
 /** Zeichnet die Seiten neu, wenn sich die verfügbare Breite spürbar geändert hat. */
@@ -1078,6 +1105,13 @@ function wireUp() {
   dom.lineEnding.addEventListener('change', saveSettings);
   dom.ignoreSymbols.addEventListener('change', saveSettings);
   dom.ignoreInvisible.addEventListener('change', saveSettings);
+  dom.ignoreHeaderFooter.addEventListener('change', () => {
+    applyHeaderFooterState();
+    saveSettings();
+  });
+  dom.headerMm.addEventListener('input', saveSettings);
+  dom.footerMm.addEventListener('input', saveSettings);
+  applyHeaderFooterState();
 
   // Markierungen ein-/ausblenden (Zustand bleibt erhalten)
   dom.toggleHighlights.addEventListener('change', () => {

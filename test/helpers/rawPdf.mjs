@@ -143,3 +143,15 @@ export function makeInvisibleTextPdf(sichtbareZeilen, varianten = []) {
 
   return buildPdf(teile.join(' '), { mitTransparenz: true });
 }
+
+/**
+ * PDF mit frei platzierten Textzeilen. Jedes Element: { text, x?, y } mit y in
+ * PDF-Koordinaten (Ursprung unten links). Nützlich, um Kopf-/Fußzeilenbereiche gezielt
+ * zu treffen. Standardseite ist A4 (595 × 842 pt).
+ */
+export function makePositionedPdf(elemente) {
+  const teile = elemente.map(
+    ({ text, x = 50, y }) => `BT /F1 12 Tf ${x} ${y} Td (${esc(text)}) Tj ET`
+  );
+  return buildPdf(teile.join(' '));
+}

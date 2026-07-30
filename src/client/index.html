@@ -33,19 +33,6 @@
           </label>
 
           <label class="field">
-            <span class="field-label">Ziel-URL für den POST-Aufruf</span>
-            <input
-              type="text"
-              id="target-url"
-              name="targetUrl"
-              placeholder="http://localhost:8080/generate"
-              spellcheck="false"
-              required
-            />
-            <span class="hint">http:// oder https://</span>
-          </label>
-
-          <label class="field">
             <span class="field-label">Vorlagepfad</span>
             <input
               type="text"
@@ -61,6 +48,23 @@
 
         <details class="advanced" id="advanced">
           <summary>Erweiterte Einstellungen</summary>
+
+          <label class="field">
+            <span class="field-label">Ziel-URL für den POST-Aufruf</span>
+            <input
+              type="text"
+              id="target-url"
+              name="targetUrl"
+              value="https://inspire-scaler.ccm.dev.babiel.com/rest/api/submit-job/CreateTestDocumentDl"
+              placeholder="https://server/rest/api/submit-job/CreateTestDocumentDl"
+              spellcheck="false"
+            />
+            <span class="hint">
+              Endpoint, der das PDF erzeugt (http:// oder https://). Der Vorgabewert ist bereits
+              gesetzt und muss nur bei einem anderen Ziel geändert werden.
+            </span>
+          </label>
+
           <label class="field">
             <span class="field-label">Content-Type des POST-Requests</span>
             <input
@@ -106,6 +110,27 @@
             Unicode-Zuordnung und erscheinen im extrahierten Text als zufällige Buchstaben –
             aus einer Checkbox wird etwa ein <code>A</code>. Steht das Zeichen nur in einem
             der Dokumente, wäre das sonst eine gemeldete Abweichung.
+          </span>
+
+          <label class="toggle">
+            <input type="checkbox" id="ignore-header-footer" />
+            <span>Kopf- und Fußzeile ausschließen</span>
+          </label>
+          <div class="field-row" id="header-footer-fields">
+            <label class="field field-inline">
+              <span class="field-label">Kopfzeile (mm)</span>
+              <input type="number" id="header-mm" min="0" max="150" step="1" value="25" />
+            </label>
+            <label class="field field-inline">
+              <span class="field-label">Fußzeile (mm)</span>
+              <input type="number" id="footer-mm" min="0" max="150" step="1" value="25" />
+            </label>
+          </div>
+          <span class="hint">
+            Blendet die angegebenen Randbereiche am oberen und unteren Seitenrand aus dem
+            Vergleich aus – nützlich, wenn dort Datum, Seitenzahl oder Aktenzeichen stehen, die
+            sich zwangsläufig unterscheiden. Wirkt auf die visuelle Ansicht wie auf den
+            Markdown-Vergleich.
           </span>
 
           <label class="field">

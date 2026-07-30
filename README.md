@@ -50,8 +50,11 @@ npm test          # Testsuite
 | --- | --- |
 | **Test-XML-Datei** | Lokale `.xml`-Datei. Ihr Inhalt (ohne XML-Deklaration) bildet den Hauptteil des POST-Bodys. |
 | **Referenz-PDF-Datei** | Lokale `.pdf`-Datei, gegen die verglichen wird. |
-| **Ziel-URL** | Endpoint, der das PDF erzeugt, z. B. `http://server:8080/generate`. |
 | **Vorlagepfad** | Freier String, wird als erste Zeile des POST-Bodys gesendet. |
+
+Die **Ziel-URL für den POST-Aufruf** steht unter „Erweiterte Einstellungen" und ist bereits mit
+`https://inspire-scaler.ccm.dev.babiel.com/rest/api/submit-job/CreateTestDocumentDl` vorbelegt –
+sie muss nur bei einem anderen Ziel angepasst werden. Der geänderte Wert bleibt gespeichert (NFR3).
 
 ### Darstellung der Abweichungen
 
@@ -128,6 +131,23 @@ Das Ergebnis weist aus, wie viele Stellen betroffen waren.
 auf weißem Grund oder Text unter einem Bild). Das ließe sich nur durch tatsächliches Rendern
 und Pixelvergleich feststellen; eine Farbheuristik würde weiße Schrift auf farbigem Kasten
 fälschlich ausblenden.
+
+### Kopf- und Fußzeile ausschließen
+
+In Kopf- und Fußzeile stehen häufig Datum, Seitenzahl oder Aktenzeichen – Angaben, die sich
+zwischen Referenz und generiertem Dokument zwangsläufig unterscheiden, ohne dass es ein Fehler
+wäre. Unter „Erweiterte Einstellungen" lässt sich **Kopf- und Fußzeile ausschließen** aktivieren;
+die Höhe der beiden Randbereiche ist in Millimetern einstellbar (Vorgabe je 25 mm).
+
+Ausgeblendet wird ein Wort, dessen vertikale Mitte im oberen `Kopfzeile`-Band oder im unteren
+`Fußzeile`-Band liegt – gemessen relativ zur jeweiligen Seitenhöhe, damit die Angabe auch bei
+unterschiedlichen Seitenformaten passt. Ein Wert von 0 mm schaltet den jeweiligen Bereich ab
+(so lässt sich z. B. nur die Fußzeile ausschließen). Der Ausschluss wirkt auf die visuelle
+Ansicht **und** den Markdown-Vergleich; das Ergebnis weist aus, wie viele Wörter betroffen
+waren. Der Seiteninhalt dazwischen wird unverändert verglichen.
+
+Standardmäßig ist der Ausschluss **aus** – Kopf- und Fußzeile werden also normal mitverglichen,
+bis er bewusst eingeschaltet wird.
 
 ### Checkboxen und andere Symbolzeichen
 
@@ -441,6 +461,7 @@ sind keine Binärdateien im Repository nötig und es besteht keine Netzwerkabhä
 | Abweichend kodierte Sonderzeichen | `test/sonderzeichen.test.js` |
 | Symbolzeichen (Checkboxen) im Textvergleich | `test/symbolzeichen.test.js` |
 | Nicht sichtbare Inhalte | `test/unsichtbare-inhalte.test.js` |
+| Kopf-/Fußzeile ausschließen, Ziel-URL in den Einstellungen | `test/kopf-fusszeile.test.js` |
 | Lesereihenfolge unabhängig von der Zeichenreihenfolge | `test/lesereihenfolge.test.js` |
 | Markdown-Vergleich (Textfassung, Zeilendiff, Reiter) | `test/markdown-compare.test.js` |
 | Font- und Stilvergleich (Schrift, Größe, Schnitt, Farbe) | `test/style-compare.test.js` |

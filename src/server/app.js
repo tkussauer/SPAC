@@ -194,8 +194,21 @@ export function createApp({
    */
   app.post('/api/generate', async (req, res, next) => {
     try {
-      const { targetUrl, templatePath, xmlContent, xmlFileName, referenceId, contentType, extraHeaders, lineEnding, ignoreSymbols, ignoreInvisible } =
-        req.body ?? {};
+      const {
+        targetUrl,
+        templatePath,
+        xmlContent,
+        xmlFileName,
+        referenceId,
+        contentType,
+        extraHeaders,
+        lineEnding,
+        ignoreSymbols,
+        ignoreInvisible,
+        ignoreHeaderFooter,
+        headerMm,
+        footerMm,
+      } = req.body ?? {};
 
       const url = validateTargetUrl(targetUrl);
       const template = validateTemplatePath(templatePath);
@@ -276,6 +289,9 @@ export function createApp({
           comparison = await comparePdfs(reference.buffer, result.pdf, {
             ignoreSymbols: ignoreSymbols !== false,
             ignoreInvisible: ignoreInvisible !== false,
+            ignoreHeaderFooter: ignoreHeaderFooter === true,
+            ...(Number.isFinite(headerMm) ? { headerMm } : {}),
+            ...(Number.isFinite(footerMm) ? { footerMm } : {}),
           });
         } catch (err) {
           comparisonError = isAppError(err)

@@ -49,19 +49,39 @@ export function mergeBoxes(boxes, { gap = 6 } = {}) {
   return merged;
 }
 
-/** Entfernt Wörter, auf die das Merkmal zutrifft, aus allen Seiten. */
+/** Entfernt Wörter, auf die das Merkmal zutrifft, aus allen Seiten. Das Prädikat erhält
+ *  zusätzlich die Seite, damit positionsabhängige Filter (Kopf-/Fußzeile) möglich sind. */
 function withoutWords(dokument, trifftZu) {
   return {
     ...dokument,
     pages: dokument.pages.map((page) => {
-      const words = page.words.filter((word) => !trifftZu(word));
+      const words = page.words.filter((word) => !trifftZu(word, page));
       return { ...page, words, text: words.map((w) => w.text).join(' ') };
     }),
   };
 }
 
 function countWords(dokument, trifftZu) {
-  return dokument.pages.reduce((sum, page) => sum + page.words.filter(trifftZu).length, 0);
+  return dokument.pages.reduce((sum, page) => sum + page.words.filter((w) => trifftZu(w, page)).length, 0);
+}
+
+/** Umrechnung Millimeter -> PDF-Punkte (1 mm = 72/25,4 pt). */
+export const MM_TO_PT = 72 / 25.4;
+
+/**
+ * Liefert ein Prädikat, das Wörter im oberen bzw. unteren Randbereich (Kopf-/Fußzeile)
+ * erkennt. Maßgeblich ist die vertikale Mitte des Wortes relativ zur jeweiligen Seitenhöhe;
+ * so wirkt die Angabe seitenübergreifend auch bei unterschiedlichen Formaten.
+ */
+export function makeHeaderFooterPredicate(headerMm, footerMm) {
+  const headerPt = Math.max(0, Number(headerMm) || 0) * MM_TO_PT;
+  const footerPt = Math.max(0, Number(footerMm) || 0) * MM_TO_PT;
+  return (word, page) => {
+    const mitteY = word.box.y + word.box.height / 2;
+    const imKopf = headerPt > 0 && mitteY <= headerPt;
+    const imFuss = footerPt > 0 && mitteY >= (page?.height ?? Infinity) - footerPt;
+    return imKopf || imFuss;
+  };
 }
 
 /** Vergleicht eine einzelne Seite (FR5) und liefert die Hervorhebungsboxen (FR6). */
@@ -123,7 +143,7 @@ export function comparePage(referencePage, generatedPage) {
 export async function comparePdfs(
   referencePdf,
   generatedPdf,
-  { ignoreSymbols = true, ignoreInvisible = true } = {}
+  { ignoreSymbols = true, ignoreInvisible = true, ignoreHeaderFooter = false, headerMm = 25, footerMm = 25 } = {}
 ) {
   const [referenceRaw, generatedRaw] = await Promise.all([
     extractPages(referencePdf, { label: 'Das Referenz-PDF' }),
@@ -139,16 +159,24 @@ export async function comparePdfs(
   //
   // Steht so etwas nur in einem der Dokumente, entstünde daraus eine gemeldete Abweichung,
   // obwohl sich am sichtbaren Inhalt nichts unterscheidet.
+  // Zusätzlich lassen sich Kopf- und Fußzeile ausschließen – dort stehen oft Datum,
+  // Seitenzahl oder Aktenzeichen, die sich zwangsläufig unterscheiden.
   const istSymbol = (word) => Boolean(word.symbol);
   const istUnsichtbar = (word) => Boolean(word.invisible);
-  const auszuschliessen = (word) =>
-    (ignoreSymbols && istSymbol(word)) || (ignoreInvisible && istUnsichtbar(word));
+  const istKopfFuss = ignoreHeaderFooter ? makeHeaderFooterPredicate(headerMm, footerMm) : () => false;
+  const auszuschliessen = (word, page) =>
+    (ignoreSymbols && istSymbol(word)) ||
+    (ignoreInvisible && istUnsichtbar(word)) ||
+    (ignoreHeaderFooter && istKopfFuss(word, page));
 
   const reference = withoutWords(referenceRaw, auszuschliessen);
   const generated = withoutWords(generatedRaw, auszuschliessen);
   const symbolWords = countWords(referenceRaw, istSymbol) + countWords(generatedRaw, istSymbol);
   const invisibleWords =
     countWords(referenceRaw, istUnsichtbar) + countWords(generatedRaw, istUnsichtbar);
+  const headerFooterWords = ignoreHeaderFooter
+    ? countWords(referenceRaw, istKopfFuss) + countWords(generatedRaw, istKopfFuss)
+    : 0;
 
   const pageCount = Math.max(reference.pageCount, generated.pageCount);
   const pages = [];
@@ -203,6 +231,7 @@ export async function comparePdfs(
     method: 'text-extraction',
     symbolGlyphs: { ignored: ignoreSymbols, count: symbolWords },
     invisibleText: { ignored: ignoreInvisible, count: invisibleWords },
+    headerFooter: { ignored: ignoreHeaderFooter, count: headerFooterWords, headerMm, footerMm },
     style,
     markdown: {
       reference: referenceMarkdown.text,
