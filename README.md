@@ -149,6 +149,22 @@ waren. Der Seiteninhalt dazwischen wird unverändert verglichen.
 Standardmäßig ist der Ausschluss **aus** – Kopf- und Fußzeile werden also normal mitverglichen,
 bis er bewusst eingeschaltet wird.
 
+### Vertikalen Text (seitliche Rahmenvermerke) ausschließen
+
+Seitliche Rahmenvermerke wie Aktenzeichen oder Stempel sind meist um 90° gedreht. Dieser
+vertikale Text gehört selten zum eigentlichen Dokumentinhalt, unterscheidet sich aber oft
+zwischen Referenz und generiertem Dokument.
+
+Unter „Erweiterte Einstellungen" lässt sich **Vertikalen Text ausschließen** aktivieren. Die
+Anwendung erkennt die Textrichtung an der Textmatrix des PDFs (zeigt sie stärker nach
+oben/unten als zur Seite, gilt der Text als vertikal) und nimmt jeglichen so gesetzten Text
+vom Vergleich aus – unabhängig von seiner Position. Der Ausschluss wirkt auf die visuelle
+Ansicht **und** den Markdown-Vergleich; das Ergebnis weist aus, wie viele Stellen betroffen
+waren.
+
+Standardmäßig ist die Option **aus** – vertikaler Text wird also normal mitverglichen, bis sie
+bewusst eingeschaltet wird. Waagerechter Fließtext bleibt in jedem Fall unberührt.
+
 ### Checkboxen und andere Symbolzeichen
 
 Kästchen, Haken und Pfeile stammen in PDFs aus Symbolschriften (Wingdings, ZapfDingbats,
@@ -462,6 +478,7 @@ sind keine Binärdateien im Repository nötig und es besteht keine Netzwerkabhä
 | Symbolzeichen (Checkboxen) im Textvergleich | `test/symbolzeichen.test.js` |
 | Nicht sichtbare Inhalte | `test/unsichtbare-inhalte.test.js` |
 | Kopf-/Fußzeile ausschließen, Ziel-URL in den Einstellungen | `test/kopf-fusszeile.test.js` |
+| Vertikalen Text (Rahmenvermerke) ausschließen | `test/vertikaler-text.test.js` |
 | Lesereihenfolge unabhängig von der Zeichenreihenfolge | `test/lesereihenfolge.test.js` |
 | Markdown-Vergleich (Textfassung, Zeilendiff, Reiter) | `test/markdown-compare.test.js` |
 | Font- und Stilvergleich (Schrift, Größe, Schnitt, Farbe) | `test/style-compare.test.js` |

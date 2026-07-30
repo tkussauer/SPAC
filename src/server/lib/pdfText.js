@@ -63,6 +63,10 @@ export function itemToWords(item, pageHeight, style = null, invisible = false) {
   const height = item.height || Math.abs(transform[3]) || 10;
   const top = pageHeight - baseline - height;
 
+  // Läuft der Text vertikal (um ~90° gedreht)? Dann zeigt die Textrichtung (a,b) stärker
+  // nach oben/unten als zur Seite. Solcher Text sind meist seitliche Rahmenvermerke.
+  const vertikal = Math.abs(transform[1]) > Math.abs(transform[0]);
+
   const cumulative = cumulativeWeights(str);
   const totalWeight = cumulative[str.length] || 1;
   const unit = totalWidth / totalWeight;
@@ -87,6 +91,8 @@ export function itemToWords(item, pageHeight, style = null, invisible = false) {
       ...(isSymbolFont(style?.font) ? { symbol: true } : {}),
       // Text, der nicht gezeichnet wird (z. B. OCR-Textebene unter einem Scan).
       ...(invisible ? { invisible: true } : {}),
+      // Vertikal gedrehter Text (seitliche Rahmenvermerke, Stempel).
+      ...(vertikal ? { vertical: true } : {}),
       // Merkmale für das Zusammenführen über Elementgrenzen hinweg
       startsAtItemStart: start === 0,
       endsAtItemEnd: end === str.length && !item.hasEOL,
@@ -141,6 +147,8 @@ function gehoertZusammen(links, rechts) {
   if (Boolean(links.symbol) !== Boolean(rechts.symbol)) return false;
   // Sichtbares und unsichtbares darf nicht zu einem Wort verschmelzen.
   if (Boolean(links.invisible) !== Boolean(rechts.invisible)) return false;
+  // Vertikaler und horizontaler Text gehören nicht zusammen.
+  if (Boolean(links.vertical) !== Boolean(rechts.vertical)) return false;
 
   const hoehe = Math.min(links.box.height, rechts.box.height) || 1;
   // Gleiche Zeile? (y ist die Oberkante; unterschiedliche Schriften weichen leicht ab)

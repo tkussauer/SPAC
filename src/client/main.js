@@ -27,6 +27,7 @@ const dom = {
   headerFooterFields: el('header-footer-fields'),
   headerMm: el('header-mm'),
   footerMm: el('footer-mm'),
+  ignoreVertical: el('ignore-vertical'),
   advanced: el('advanced'),
   tabs: el('tabs'),
   tabPdf: el('tab-pdf'),
@@ -126,6 +127,10 @@ function loadSettings() {
     }
     if (saved.headerMm !== undefined && saved.headerMm !== '') dom.headerMm.value = saved.headerMm;
     if (saved.footerMm !== undefined && saved.footerMm !== '') dom.footerMm.value = saved.footerMm;
+    if (typeof saved.ignoreVertical === 'boolean') {
+      dom.ignoreVertical.checked = saved.ignoreVertical;
+      if (saved.ignoreVertical) dom.advanced?.setAttribute('open', '');
+    }
     if (typeof saved.showHighlights === 'boolean') dom.toggleHighlights.checked = saved.showHighlights;
     if (typeof saved.onlyDiffLines === 'boolean') dom.toggleOnlyDiff.checked = saved.onlyDiffLines;
     if (TABS.includes(saved.activeTab)) state.activeTab = saved.activeTab;
@@ -149,6 +154,7 @@ function saveSettings() {
         ignoreHeaderFooter: dom.ignoreHeaderFooter.checked,
         headerMm: dom.headerMm.value,
         footerMm: dom.footerMm.value,
+        ignoreVertical: dom.ignoreVertical.checked,
         showHighlights: dom.toggleHighlights.checked,
         onlyDiffLines: dom.toggleOnlyDiff.checked,
         activeTab: state.activeTab,
@@ -299,6 +305,7 @@ async function runComparison({ reason = 'generate' } = {}) {
         ignoreHeaderFooter: dom.ignoreHeaderFooter.checked,
         headerMm: Number(dom.headerMm.value),
         footerMm: Number(dom.footerMm.value),
+        ignoreVertical: dom.ignoreVertical.checked,
       }),
     });
 
@@ -839,6 +846,9 @@ function renderSummary(result, comparison) {
   if (comparison.headerFooter?.ignored && comparison.headerFooter.count > 0) {
     ausgenommen.push(`${comparison.headerFooter.count} Wörter in Kopf-/Fußzeile`);
   }
+  if (comparison.verticalText?.ignored && comparison.verticalText.count > 0) {
+    ausgenommen.push(`${comparison.verticalText.count} vertikale Textstellen`);
+  }
 
   dom.summarySymbols.hidden = ausgenommen.length === 0;
   if (ausgenommen.length > 0) {
@@ -1111,6 +1121,7 @@ function wireUp() {
   });
   dom.headerMm.addEventListener('input', saveSettings);
   dom.footerMm.addEventListener('input', saveSettings);
+  dom.ignoreVertical.addEventListener('change', saveSettings);
   applyHeaderFooterState();
 
   // Markierungen ein-/ausblenden (Zustand bleibt erhalten)

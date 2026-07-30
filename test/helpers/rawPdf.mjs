@@ -155,3 +155,19 @@ export function makePositionedPdf(elemente) {
   );
   return buildPdf(teile.join(' '));
 }
+
+/**
+ * PDF mit horizontalem Fließtext und zusätzlich vertikal (90°) gesetztem Text am Rand –
+ * etwa ein Aktenzeichen oder Stempel. `vertikaleTexte` wird über eine gedrehte Textmatrix
+ * (Tm) gesetzt und landet dadurch als vertikaler Text im PDF.
+ */
+export function makeVerticalMarginPdf(horizontaleZeilen, vertikaleTexte = []) {
+  const teile = horizontaleZeilen.map(
+    (zeile, i) => `BT /F1 12 Tf 50 ${780 - i * 16} Td (${esc(zeile)}) Tj ET`
+  );
+  vertikaleTexte.forEach((text, i) => {
+    // [0 1 -1 0 x y]: 90° gegen den Uhrzeigersinn, am linken Rand
+    teile.push(`BT /F1 12 Tf 0 1 -1 0 ${25 + i * 14} 300 Tm (${esc(text)}) Tj ET`);
+  });
+  return buildPdf(teile.join(' '));
+}

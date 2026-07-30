@@ -143,7 +143,14 @@ export function comparePage(referencePage, generatedPage) {
 export async function comparePdfs(
   referencePdf,
   generatedPdf,
-  { ignoreSymbols = true, ignoreInvisible = true, ignoreHeaderFooter = false, headerMm = 25, footerMm = 25 } = {}
+  {
+    ignoreSymbols = true,
+    ignoreInvisible = true,
+    ignoreHeaderFooter = false,
+    headerMm = 25,
+    footerMm = 25,
+    ignoreVertical = false,
+  } = {}
 ) {
   const [referenceRaw, generatedRaw] = await Promise.all([
     extractPages(referencePdf, { label: 'Das Referenz-PDF' }),
@@ -159,14 +166,19 @@ export async function comparePdfs(
   //
   // Steht so etwas nur in einem der Dokumente, entstünde daraus eine gemeldete Abweichung,
   // obwohl sich am sichtbaren Inhalt nichts unterscheidet.
-  // Zusätzlich lassen sich Kopf- und Fußzeile ausschließen – dort stehen oft Datum,
-  // Seitenzahl oder Aktenzeichen, die sich zwangsläufig unterscheiden.
+  // Weitere Inhalte, die sich ausblenden lassen:
+  //  - Kopf- und Fußzeile (Datum, Seitenzahl, Aktenzeichen), die sich zwangsläufig
+  //    unterscheiden.
+  //  - Vertikal gedrehter Text – seitliche Rahmenvermerke/Stempel, die inhaltlich nicht zum
+  //    Dokument gehören.
   const istSymbol = (word) => Boolean(word.symbol);
   const istUnsichtbar = (word) => Boolean(word.invisible);
+  const istVertikal = (word) => Boolean(word.vertical);
   const istKopfFuss = ignoreHeaderFooter ? makeHeaderFooterPredicate(headerMm, footerMm) : () => false;
   const auszuschliessen = (word, page) =>
     (ignoreSymbols && istSymbol(word)) ||
     (ignoreInvisible && istUnsichtbar(word)) ||
+    (ignoreVertical && istVertikal(word)) ||
     (ignoreHeaderFooter && istKopfFuss(word, page));
 
   const reference = withoutWords(referenceRaw, auszuschliessen);
@@ -174,6 +186,7 @@ export async function comparePdfs(
   const symbolWords = countWords(referenceRaw, istSymbol) + countWords(generatedRaw, istSymbol);
   const invisibleWords =
     countWords(referenceRaw, istUnsichtbar) + countWords(generatedRaw, istUnsichtbar);
+  const verticalWords = countWords(referenceRaw, istVertikal) + countWords(generatedRaw, istVertikal);
   const headerFooterWords = ignoreHeaderFooter
     ? countWords(referenceRaw, istKopfFuss) + countWords(generatedRaw, istKopfFuss)
     : 0;
@@ -231,6 +244,7 @@ export async function comparePdfs(
     method: 'text-extraction',
     symbolGlyphs: { ignored: ignoreSymbols, count: symbolWords },
     invisibleText: { ignored: ignoreInvisible, count: invisibleWords },
+    verticalText: { ignored: ignoreVertical, count: verticalWords },
     headerFooter: { ignored: ignoreHeaderFooter, count: headerFooterWords, headerMm, footerMm },
     style,
     markdown: {
