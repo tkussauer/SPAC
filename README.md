@@ -10,6 +10,9 @@ Umgesetzte Spezifikation: [`docs/spec.md`](docs/spec.md)
 
 ## Schnellstart unter Windows (NFR4)
 
+> Ausführliche Schritt-für-Schritt-Anleitung inkl. Problembehebung:
+> [`docs/INSTALLATION-Windows.md`](docs/INSTALLATION-Windows.md)
+
 1. [Node.js 20 oder neuer](https://nodejs.org/) installieren (einmalig).
 2. Diesen Ordner auf den Rechner kopieren.
 3. **Doppelklick auf `start.bat`.**
