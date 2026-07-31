@@ -28,6 +28,7 @@ const dom = {
   headerMm: el('header-mm'),
   footerMm: el('footer-mm'),
   ignoreVertical: el('ignore-vertical'),
+  ignoreSingleLetters: el('ignore-single-letters'),
   advanced: el('advanced'),
   tabs: el('tabs'),
   tabPdf: el('tab-pdf'),
@@ -131,6 +132,10 @@ function loadSettings() {
       dom.ignoreVertical.checked = saved.ignoreVertical;
       if (saved.ignoreVertical) dom.advanced?.setAttribute('open', '');
     }
+    if (typeof saved.ignoreSingleLetters === 'boolean') {
+      dom.ignoreSingleLetters.checked = saved.ignoreSingleLetters;
+      if (saved.ignoreSingleLetters) dom.advanced?.setAttribute('open', '');
+    }
     if (typeof saved.showHighlights === 'boolean') dom.toggleHighlights.checked = saved.showHighlights;
     if (typeof saved.onlyDiffLines === 'boolean') dom.toggleOnlyDiff.checked = saved.onlyDiffLines;
     if (TABS.includes(saved.activeTab)) state.activeTab = saved.activeTab;
@@ -155,6 +160,7 @@ function saveSettings() {
         headerMm: dom.headerMm.value,
         footerMm: dom.footerMm.value,
         ignoreVertical: dom.ignoreVertical.checked,
+        ignoreSingleLetters: dom.ignoreSingleLetters.checked,
         showHighlights: dom.toggleHighlights.checked,
         onlyDiffLines: dom.toggleOnlyDiff.checked,
         activeTab: state.activeTab,
@@ -306,6 +312,7 @@ async function runComparison({ reason = 'generate' } = {}) {
         headerMm: Number(dom.headerMm.value),
         footerMm: Number(dom.footerMm.value),
         ignoreVertical: dom.ignoreVertical.checked,
+        ignoreSingleLetters: dom.ignoreSingleLetters.checked,
       }),
     });
 
@@ -849,6 +856,9 @@ function renderSummary(result, comparison) {
   if (comparison.verticalText?.ignored && comparison.verticalText.count > 0) {
     ausgenommen.push(`${comparison.verticalText.count} vertikale Textstellen`);
   }
+  if (comparison.singleLetters?.ignored && comparison.singleLetters.count > 0) {
+    ausgenommen.push(`${comparison.singleLetters.count} alleinstehende Einzelbuchstaben`);
+  }
 
   dom.summarySymbols.hidden = ausgenommen.length === 0;
   if (ausgenommen.length > 0) {
@@ -1122,6 +1132,7 @@ function wireUp() {
   dom.headerMm.addEventListener('input', saveSettings);
   dom.footerMm.addEventListener('input', saveSettings);
   dom.ignoreVertical.addEventListener('change', saveSettings);
+  dom.ignoreSingleLetters.addEventListener('change', saveSettings);
   applyHeaderFooterState();
 
   // Markierungen ein-/ausblenden (Zustand bleibt erhalten)

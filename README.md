@@ -184,12 +184,22 @@ obwohl der Text identisch ist. Die Anwendung **nimmt solche Zeichen vom Textverg
 in beiden Dokumenten, damit der Vergleich symmetrisch bleibt. Das Ergebnis weist aus, wie viele
 Zeichen betroffen waren.
 
-Erkannt werden sie auf zwei Wegen: am **Schriftnamen** (Wingdings, ZapfDingbats …) und –
-unabhängig davon – am **Glyph selbst**. Der Glyph-Weg greift nur, wenn alle drei Bedingungen
-zutreffen: der gezeichnete Glyph weicht vom gemeldeten Textzeichen ab, das gemeldete Zeichen ist
-ein einzelner Buchstabe/eine Ziffer (eben der Rückfall), und der gezeichnete Glyph liegt in einem
-Symbolblock (Kästchen, Haken, Pfeile, Dingbats). So werden auch Checkboxen aus Schriften erkannt,
-deren Name nicht auf der Liste steht.
+Erkannt werden sie auf drei voneinander unabhängigen Wegen:
+
+1. **Schriftname** – Wingdings, ZapfDingbats, Webdings, Marlett, Symbol …
+2. **Gezeichneter Glyph** – greift nur, wenn alle drei Bedingungen zutreffen: der gezeichnete
+   Glyph weicht vom gemeldeten Textzeichen ab, das gemeldete Zeichen ist ein einzelner
+   Buchstabe/eine Ziffer (eben der Rückfall), und der gezeichnete Glyph liegt in einem
+   Symbolblock (Kästchen, Haken, Pfeile, Dingbats).
+3. **Verwendung der Schrift im Dokument** – der Weg, der in der Praxis am zuverlässigsten
+   greift, weil Formulargeneratoren ihre Kästchenschrift weder aussagekräftig benennen
+   („AAAAAA+F2") noch von einer Textschrift unterscheidbar zeichnen. Als *Markierungsschrift*
+   gilt eine Schrift, die (a) im ganzen Dokument ausschließlich einzelne Zeichen setzt, nie ein
+   mehrzeichiges Wort, (b) mindestens ein Zeichen wiederholt (das grenzt sie von einer einzelnen
+   Initiale ab), (c) nicht nur aus Ziffern besteht (sonst träfe es Seitenzahlen in eigener
+   Schrift) und (d) höchstens die Hälfte des Dokuments ausmacht, während es daneben echten
+   Fließtext gibt. Die Textschrift eines Dokuments kann davon nie betroffen sein – sie setzt
+   zwangsläufig mehrzeichige Wörter.
 
 Der **Private-Use-Bereich zählt bewusst nicht** als Symbol: Eingebettete Subset-Schriften – in
 echten PDFs der Normalfall – bilden ganz normale Buchstaben dorthin ab. Würde man ihn mitzählen,
@@ -201,6 +211,13 @@ Abschaltbar unter „Erweiterte Einstellungen" → *Symbolzeichen beim Textvergl
 Dann zählen die Kästchen wieder als Text – sinnvoll, wenn gerade deren Vorhandensein geprüft
 werden soll. Unabhängig davon bleiben die Kästchen in der **PDF-Ansicht sichtbar**; ausgenommen
 sind sie nur vom Text- und Markdown-Vergleich.
+
+Als **Rückfallebene** gibt es unter „Erweiterte Einstellungen" zusätzlich *Alleinstehende
+Einzelbuchstaben ignorieren*. Die Option nimmt jeden allein stehenden Einzelbuchstaben vom
+Vergleich aus – unabhängig von Schrift und Glyph. Sie hilft, wenn ein Kästchen in derselben
+Schrift wie der Fließtext steckt und deshalb von keiner der drei Erkennungen erfasst wird.
+Weil sie auch echte Einzelbuchstaben trifft (Gliederungspunkte, Initialen), ist sie
+standardmäßig **aus**.
 
 ### Zeichenreihenfolge im PDF
 

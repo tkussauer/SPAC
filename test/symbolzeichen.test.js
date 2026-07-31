@@ -4,9 +4,14 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { comparePdfs } from '../src/server/lib/comparePdfs.js';
-import { extractPages } from '../src/server/lib/pdfText.js';
 import { isSymbolFont, isSymbolGlyph, verwerfeUnplausibleSymbole } from '../src/server/lib/pdfStyle.js';
-import { makeCheckboxPdf, makeSimplePdf, makeEmbeddedFontPdf } from './helpers/rawPdf.mjs';
+import { extractPages, markiereMarkierungsschriften } from '../src/server/lib/pdfText.js';
+import {
+  makeCheckboxPdf,
+  makeSimplePdf,
+  makeEmbeddedFontPdf,
+  makeMarkerFontPdf,
+} from './helpers/rawPdf.mjs';
 import { startApp, startMockTarget, uploadReference, SAMPLE_XML, SAMPLE_TEMPLATE_PATH } from './helpers/fixtures.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -311,4 +316,129 @@ test('Symbolzeichen: Die Oberfläche bietet den Schalter und weist auf die Wirku
   assert.match(client, /ignoreSymbols: dom\.ignoreSymbols\.checked/, 'Die Einstellung wird nicht gesendet');
   assert.match(client, /saved\.ignoreSymbols/, 'Die Einstellung wird nicht gespeichert');
   assert.match(client, /symbolGlyphs/, 'Der Hinweis wird nicht angezeigt');
+});
+
+/**
+ * Dritte, vollständig fontname- und glyphunabhängige Erkennung: Eine Schrift, die im ganzen
+ * Dokument ausschließlich einzelne, sich wiederholende Zeichen setzt, kann keine Textschrift
+ * sein – sie setzt Markierungen (Kästchen, Haken). Genau diesen Fall liefern echte
+ * Formulargeneratoren: Die Kästchenschrift heißt nichtssagend ("AAAAAA+F2") und der
+ * gezeichnete Glyph ist von einem gewöhnlichen Buchstaben nicht zu unterscheiden.
+ */
+const wort = (text, font) => ({ text, style: { font, bold: false, italic: false } });
+const alsSymbol = (...woerter) =>
+  markiereMarkierungsschriften([{ words: woerter }])[0].words.filter((w) => w.symbol).map((w) => w.text);
+
+test('Markierungsschrift: Kästchen ohne erkennbaren Schriftnamen werden erkannt', async () => {
+  const { pages } = await extractPages(makeMarkerFontPdf(OPTIONEN));
+
+  const marken = pages[0].words.filter((w) => w.symbol);
+  assert.equal(marken.length, OPTIONEN.length, 'Jedes Kästchen muss erkannt werden');
+  assert.deepEqual([...new Set(marken.map((w) => w.text))], ['A']);
+  assert.ok(
+    pages[0].words.some((w) => w.text === 'einmalig' && !w.symbol),
+    'Der Fließtext darf nicht betroffen sein'
+  );
+});
+
+test('Markierungsschrift: Fehlende Kästchen erzeugen keine Abweichung', async () => {
+  const ergebnis = await comparePdfs(
+    makeMarkerFontPdf(OPTIONEN, { mitMarken: true }),
+    makeMarkerFontPdf(OPTIONEN, { mitMarken: false })
+  );
+
+  assert.equal(ergebnis.identical, true, 'Der sichtbare Text ist gleich');
+  assert.equal(ergebnis.markdown.identical, true, 'Visueller und Markdown-Vergleich müssen übereinstimmen');
+  assert.deepEqual(ergebnis.pages[0].generated.highlights, []);
+  assert.equal(ergebnis.symbolGlyphs.count, OPTIONEN.length);
+  assert.ok(!ergebnis.markdown.reference.includes('A einmalig'), ergebnis.markdown.reference);
+});
+
+test('Markierungsschrift: Abgeschaltet werden die Kästchen wieder gemeldet', async () => {
+  const ergebnis = await comparePdfs(
+    makeMarkerFontPdf(OPTIONEN, { mitMarken: true }),
+    makeMarkerFontPdf(OPTIONEN, { mitMarken: false }),
+    { ignoreSymbols: false }
+  );
+
+  assert.equal(ergebnis.identical, false);
+  assert.equal(ergebnis.pages[0].counts.removedWords, OPTIONEN.length);
+});
+
+test('Markierungsschrift: Die Textschrift selbst kann nie betroffen sein', () => {
+  // Dieselbe Schrift setzt Fließtext und Einzelzeichen -> keine Markierungsschrift.
+  assert.deepEqual(
+    alsSymbol(wort('Rechnung', 'Helvetica'), wort('A', 'Helvetica'), wort('A', 'Helvetica')),
+    []
+  );
+});
+
+test('Markierungsschrift: Ziffern in eigener Schrift (Seitenzahlen) bleiben Text', () => {
+  assert.deepEqual(
+    alsSymbol(wort('Erste Seite', 'Helvetica'), wort('1', 'Seitenzahl'), wort('1', 'Seitenzahl')),
+    []
+  );
+});
+
+test('Markierungsschrift: Einmalige Einzelzeichen (Initialen) bleiben Text', () => {
+  assert.deepEqual(
+    alsSymbol(wort('Kapitelanfang', 'Helvetica'), wort('A', 'Zierschrift'), wort('B', 'Zierschrift')),
+    []
+  );
+});
+
+test('Markierungsschrift: Über die Hälfte des Dokuments gilt als unplausibel', () => {
+  // 3 von 5 Wörtern -> mehr als die Hälfte, also eher Textschrift als Beiwerk.
+  assert.deepEqual(
+    alsSymbol(
+      wort('Erste Zeile', 'Helvetica'),
+      wort('Zweite Zeile', 'Helvetica'),
+      wort('A', 'Marken'),
+      wort('A', 'Marken'),
+      wort('A', 'Marken')
+    ),
+    []
+  );
+  // 2 von 5 -> plausibel
+  assert.deepEqual(
+    alsSymbol(
+      wort('Erste Zeile', 'Helvetica'),
+      wort('Zweite Zeile', 'Helvetica'),
+      wort('Dritte Zeile', 'Helvetica'),
+      wort('A', 'Marken'),
+      wort('A', 'Marken')
+    ),
+    ['A', 'A']
+  );
+});
+
+test('Markierungsschrift: Rückfallebene – alleinstehende Einzelbuchstaben ignorieren', async () => {
+  // Selbst wenn ein Kästchen in derselben Schrift wie der Fließtext steckt und deshalb von
+  // keiner der drei Erkennungen erfasst wird, lässt es sich über diese Option ausblenden.
+  const referenz = makeSimplePdf(['A einmalig A gelegentlich']);
+  const generiert = makeSimplePdf(['einmalig gelegentlich']);
+
+  const standard = await comparePdfs(referenz, generiert);
+  assert.equal(standard.identical, false, 'Ohne die Option bleibt es eine Abweichung');
+  assert.deepEqual(standard.singleLetters, { ignored: false, count: 2 });
+
+  const mitOption = await comparePdfs(referenz, generiert, { ignoreSingleLetters: true });
+  assert.equal(mitOption.identical, true);
+  assert.equal(mitOption.markdown.identical, true);
+  assert.deepEqual(mitOption.singleLetters, { ignored: true, count: 2 });
+});
+
+test('Markierungsschrift: Die Oberfläche bietet die Rückfallebene', async () => {
+  const html = await readFile(path.join(root, 'src/client/index.html'), 'utf8');
+  const schalter = html.match(/<input[^>]*id="ignore-single-letters"[^>]*>/s)?.[0];
+
+  assert.ok(schalter, 'Schalter für Einzelbuchstaben fehlt');
+  assert.match(schalter, /type="checkbox"/);
+  assert.ok(!/checked/.test(schalter), 'Die Rückfallebene muss standardmäßig aus sein');
+  assert.match(html, /Alleinstehende Einzelbuchstaben ignorieren/);
+
+  const client = await readFile(path.join(root, 'src/client/main.js'), 'utf8');
+  assert.match(client, /ignoreSingleLetters: dom\.ignoreSingleLetters\.checked/);
+  assert.match(client, /saved\.ignoreSingleLetters/);
+  assert.match(client, /singleLetters/, 'Der Hinweis wird nicht angezeigt');
 });

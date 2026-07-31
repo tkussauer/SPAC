@@ -109,7 +109,19 @@
             Kästchen und Haken aus Symbolschriften (Wingdings, ZapfDingbats …) haben keine
             Unicode-Zuordnung und erscheinen im extrahierten Text als zufällige Buchstaben –
             aus einer Checkbox wird etwa ein <code>A</code>. Steht das Zeichen nur in einem
-            der Dokumente, wäre das sonst eine gemeldete Abweichung.
+            der Dokumente, wäre das sonst eine gemeldete Abweichung. Erkannt werden solche
+            Zeichen am Schriftnamen, am gezeichneten Glyph und daran, dass eine Schrift
+            ausschließlich einzelne, sich wiederholende Zeichen setzt.
+          </span>
+
+          <label class="toggle">
+            <input type="checkbox" id="ignore-single-letters" />
+            <span>Alleinstehende Einzelbuchstaben ignorieren</span>
+          </label>
+          <span class="hint">
+            Rückfallebene, falls ein Kästchen trotz allem als Buchstabe im Text landet: Diese
+            Option nimmt <em>jeden</em> allein stehenden Einzelbuchstaben vom Vergleich aus –
+            also auch echte, etwa Gliederungspunkte. Deshalb standardmäßig aus.
           </span>
 
           <label class="toggle">

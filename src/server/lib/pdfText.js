@@ -207,6 +207,89 @@ export function sortInReadingOrder(words) {
 }
 
 /**
+ * Höchstanteil der Wörter eines Dokuments, den eine Markierungsschrift ausmachen darf.
+ * Kästchen und Haken sind Beiwerk; macht eine Schrift mehr als die Hälfte aus, handelt es
+ * sich eher um die Textschrift des Dokuments – dann wird nichts ausgeblendet.
+ */
+const MAX_MARKIERUNGSANTEIL = 0.5;
+
+/** Schriftidentität eines Wortes (Name und Schnitt) – trennt Textschrift von Symbolschrift. */
+function fontIdentity(style) {
+  if (!style) return 'unbekannt';
+  return [style.font, style.bold ? 'b' : '', style.italic ? 'i' : ''].join('|');
+}
+
+/**
+ * Erkennt **Markierungsschriften** an ihrer Verwendung statt an Namen oder Glyph-Internas.
+ *
+ * Checkbox-Kästchen kommen aus einer eigenen Schrift, der die Unicode-Zuordnung fehlt: Die
+ * Textextraktion liefert dann den rohen Zeichencode, aus dem Kästchen wird ein "A". Weder der
+ * Schriftname (oft ein nichtssagendes Subset wie "ABCDEF+F2") noch der gezeichnete Glyph
+ * (eingebettete Schriften bilden alles in den Private-Use-Bereich ab) sind dafür verlässlich.
+ *
+ * Verlässlich ist dagegen, **wie** eine solche Schrift eingesetzt wird. Als Markierungsschrift
+ * gilt sie, wenn alle vier Punkte zutreffen:
+ *
+ *  1. Sie setzt ausschließlich einzelne Zeichen – nie ein Wort aus mehreren Zeichen.
+ *  2. Mindestens ein Zeichen wiederholt sich (Kästchen stehen nie allein; das grenzt sie von
+ *     einer einzelnen Initiale oder einem Sonderzeichen ab).
+ *  3. Sie besteht nicht nur aus Ziffern (sonst träfe es Seitenzahlen in eigener Schrift).
+ *  4. Sie macht höchstens die Hälfte des Dokuments aus, und es gibt daneben echten Fließtext.
+ *
+ * Damit kann die Textschrift eines Dokuments nie betroffen sein – sie setzt zwangsläufig
+ * mehrzeichige Wörter. Ein stiller Totalausfall (alles gilt als Symbol, der Vergleich findet
+ * nichts mehr) ist so ausgeschlossen.
+ */
+export function markiereMarkierungsschriften(pages) {
+  const jeSchrift = new Map();
+  let gesamt = 0;
+  let hatFliesstext = false;
+
+  for (const page of pages) {
+    for (const word of page.words) {
+      const key = fontIdentity(word.style);
+      const eintrag = jeSchrift.get(key) ?? { woerter: 0, einzelzeichen: 0, haeufigkeit: new Map() };
+      eintrag.woerter += 1;
+      const zeichen = [...word.text];
+      if (zeichen.length === 1) {
+        eintrag.einzelzeichen += 1;
+        eintrag.haeufigkeit.set(word.text, (eintrag.haeufigkeit.get(word.text) ?? 0) + 1);
+      } else {
+        hatFliesstext = true;
+      }
+      jeSchrift.set(key, eintrag);
+      gesamt += 1;
+    }
+  }
+
+  const markierungsschriften = new Set();
+  if (hatFliesstext && gesamt > 0) {
+    for (const [key, eintrag] of jeSchrift) {
+      const nurEinzelzeichen = eintrag.woerter === eintrag.einzelzeichen;
+      const wiederholt = [...eintrag.haeufigkeit.values()].some((anzahl) => anzahl >= 2);
+      const nurZiffern = [...eintrag.haeufigkeit.keys()].every((zeichen) => /\p{Nd}/u.test(zeichen));
+      if (
+        nurEinzelzeichen &&
+        wiederholt &&
+        !nurZiffern &&
+        eintrag.woerter / gesamt <= MAX_MARKIERUNGSANTEIL
+      ) {
+        markierungsschriften.add(key);
+      }
+    }
+  }
+
+  if (markierungsschriften.size === 0) return pages;
+
+  return pages.map((page) => ({
+    ...page,
+    words: page.words.map((word) =>
+      markierungsschriften.has(fontIdentity(word.style)) ? { ...word, symbol: true } : word
+    ),
+  }));
+}
+
+/**
  * Unsichtbare Steuerzeichen (weiches Trennzeichen, Zero-Width-Zeichen, BOM) entfernen und
  * die Schreibweise vereinheitlichen (NFC). Ohne die Normalisierung gilt ein zerlegtes
  * "a" + Trema nicht als dasselbe Zeichen wie ein zusammengesetztes "ä".
@@ -299,5 +382,7 @@ export async function extractPages(buffer, { label = 'PDF' } = {}) {
     await doc.destroy?.();
   }
 
-  return { pageCount: pages.length, pages, colorsResolved };
+  // Erst über das gesamte Dokument hinweg lässt sich erkennen, welche Schrift nur
+  // Markierungszeichen (Kästchen, Haken) setzt – dafür braucht es alle Seiten.
+  return { pageCount: pages.length, pages: markiereMarkierungsschriften(pages), colorsResolved };
 }

@@ -150,6 +150,7 @@ export async function comparePdfs(
     headerMm = 25,
     footerMm = 25,
     ignoreVertical = false,
+    ignoreSingleLetters = false,
   } = {}
 ) {
   const [referenceRaw, generatedRaw] = await Promise.all([
@@ -174,11 +175,16 @@ export async function comparePdfs(
   const istSymbol = (word) => Boolean(word.symbol);
   const istUnsichtbar = (word) => Boolean(word.invisible);
   const istVertikal = (word) => Boolean(word.vertical);
+  // Rückfallebene, falls eine Markierungsschrift nicht erkannt wird: alleinstehende
+  // Einzelbuchstaben ganz ausblenden. Bewusst abschaltbar und standardmäßig aus, denn ein
+  // einzelner Buchstabe kann auch echter Inhalt sein (Gliederungspunkt "a)", Initiale).
+  const istEinzelbuchstabe = (word) => /^\p{L}$/u.test(word.text);
   const istKopfFuss = ignoreHeaderFooter ? makeHeaderFooterPredicate(headerMm, footerMm) : () => false;
   const auszuschliessen = (word, page) =>
     (ignoreSymbols && istSymbol(word)) ||
     (ignoreInvisible && istUnsichtbar(word)) ||
     (ignoreVertical && istVertikal(word)) ||
+    (ignoreSingleLetters && istEinzelbuchstabe(word)) ||
     (ignoreHeaderFooter && istKopfFuss(word, page));
 
   const reference = withoutWords(referenceRaw, auszuschliessen);
@@ -187,6 +193,8 @@ export async function comparePdfs(
   const invisibleWords =
     countWords(referenceRaw, istUnsichtbar) + countWords(generatedRaw, istUnsichtbar);
   const verticalWords = countWords(referenceRaw, istVertikal) + countWords(generatedRaw, istVertikal);
+  const singleLetterWords =
+    countWords(referenceRaw, istEinzelbuchstabe) + countWords(generatedRaw, istEinzelbuchstabe);
   const headerFooterWords = ignoreHeaderFooter
     ? countWords(referenceRaw, istKopfFuss) + countWords(generatedRaw, istKopfFuss)
     : 0;
@@ -245,6 +253,7 @@ export async function comparePdfs(
     symbolGlyphs: { ignored: ignoreSymbols, count: symbolWords },
     invisibleText: { ignored: ignoreInvisible, count: invisibleWords },
     verticalText: { ignored: ignoreVertical, count: verticalWords },
+    singleLetters: { ignored: ignoreSingleLetters, count: singleLetterWords },
     headerFooter: { ignored: ignoreHeaderFooter, count: headerFooterWords, headerMm, footerMm },
     style,
     markdown: {

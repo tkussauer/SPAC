@@ -4,11 +4,18 @@
  * etwa ein Sonderzeichen, das aus einer anderen Schrift gesetzt wird und
  * dadurch als eigenes Textelement im PDF landet.
  */
-function buildPdf(content, { zweiSchriften = false, mitSymbolschrift = false, mitTransparenz = false } = {}) {
+function buildPdf(
+  content,
+  { zweiSchriften = false, mitSymbolschrift = false, mitTransparenz = false, mitMarkierungsschrift = false } = {}
+) {
   const objs = [];
   objs[1] = '<< /Type /Catalog /Pages 2 0 R >>';
   objs[2] = '<< /Type /Pages /Kids [3 0 R] /Count 1 >>';
-  const fonts = mitSymbolschrift ? '/F1 5 0 R /F3 7 0 R' : zweiSchriften ? '/F1 5 0 R /F2 6 0 R' : '/F1 5 0 R';
+  const schriften = ['/F1 5 0 R'];
+  if (zweiSchriften) schriften.push('/F2 6 0 R');
+  if (mitSymbolschrift) schriften.push('/F3 7 0 R');
+  if (mitMarkierungsschrift) schriften.push('/F4 9 0 R');
+  const fonts = schriften.join(' ');
   objs[3] =
     `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] ` +
     `/Resources << /Font << ${fonts} >> ${mitTransparenz ? '/ExtGState << /GS0 8 0 R >>' : ''} >> /Contents 4 0 R >>`;
@@ -18,7 +25,10 @@ function buildPdf(content, { zweiSchriften = false, mitSymbolschrift = false, mi
 
   objs[7] = '<< /Type /Font /Subtype /Type1 /BaseFont /ZapfDingbats >>';
   objs[8] = '<< /Type /ExtGState /ca 0 >>';
-  const anzahl = mitTransparenz ? 8 : mitSymbolschrift ? 7 : zweiSchriften ? 6 : 5;
+  // Schrift mit nichtssagendem Subset-Namen: über den Namen ist sie nicht als Symbolschrift
+  // zu erkennen – genau der Fall, den echte Formulargeneratoren erzeugen.
+  objs[9] = '<< /Type /Font /Subtype /Type1 /BaseFont /AAAAAA+F2 /Encoding /WinAnsiEncoding >>';
+  const anzahl = mitMarkierungsschrift ? 9 : mitTransparenz ? 8 : mitSymbolschrift ? 7 : zweiSchriften ? 6 : 5;
   let pdf = '%PDF-1.4\n';
   const offsets = [];
   for (let i = 1; i <= anzahl; i += 1) {
@@ -103,6 +113,23 @@ export function makeCheckboxPdfSeparatePass(optionen) {
     teile.push(`BT /F1 12 Tf ${px + 12} 780 Td (${esc(option)}) Tj ET`);
   }
   return buildPdf(teile.join(' '), { mitSymbolschrift: true });
+}
+
+/**
+ * Wie makeCheckboxPdf, aber die Kästchen kommen aus einer Schrift mit **nichtssagendem
+ * Namen** ("AAAAAA+F2"). Weder der Schriftname noch der gezeichnete Glyph verraten hier eine
+ * Symbolschrift – erkennbar ist sie nur daran, dass sie ausschließlich einzelne, sich
+ * wiederholende Zeichen setzt. Genau so liefern echte Formulargeneratoren ihre Kästchen.
+ */
+export function makeMarkerFontPdf(optionen, { mitMarken = true } = {}) {
+  const teile = ['BT 50 780 Td'];
+  optionen.forEach((option, index) => {
+    if (index > 0) teile.push('/F1 12 Tf ( ) Tj');
+    if (mitMarken) teile.push('/F4 12 Tf (A) Tj /F1 12 Tf ( ) Tj');
+    teile.push(`/F1 12 Tf (${esc(option)}) Tj`);
+  });
+  teile.push('ET');
+  return buildPdf(teile.join(' '), { mitMarkierungsschrift: true });
 }
 
 /** Dieselben Zeilen, aber in umgekehrter Zeichenreihenfolge ausgegeben. */

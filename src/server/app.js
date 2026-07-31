@@ -209,6 +209,7 @@ export function createApp({
         headerMm,
         footerMm,
         ignoreVertical,
+        ignoreSingleLetters,
       } = req.body ?? {};
 
       const url = validateTargetUrl(targetUrl);
@@ -294,6 +295,7 @@ export function createApp({
             ...(Number.isFinite(headerMm) ? { headerMm } : {}),
             ...(Number.isFinite(footerMm) ? { footerMm } : {}),
             ignoreVertical: ignoreVertical === true,
+            ignoreSingleLetters: ignoreSingleLetters === true,
           });
         } catch (err) {
           comparisonError = isAppError(err)
