@@ -100,18 +100,34 @@ export function collectTextRenderStates(operatorList, OPS) {
 }
 
 /**
- * Erkennt ein Symbol-/Piktogramm-Glyph an einem einzelnen pdf.js-Glyph.
- * Der tatsächlich gezeichnete Glyph (`fontChar`) weicht vom gemeldeten Textzeichen
- * (`unicode`) ab und ist selbst kein Buchstabe/keine Ziffer – dann ist der Textwert nur ein
- * Rückfall (z. B. ein Kästchen, das als "A" ausgegeben wird). Ligaturen wie "ﬁ"→"fi" bleiben
- * ausgenommen, da ihr `fontChar` ein Buchstabe ist.
+ * Unicode-Blöcke, die Piktogramme enthalten: Pfeile, technische Zeichen, Rahmen,
+ * geometrische Formen (Kästchen), Symbole und Dingbats.
+ *
+ * Der **Private-Use-Bereich ist bewusst nicht dabei**: Eingebettete Subset-Schriften – in
+ * echten PDFs der Normalfall – bilden ganz normale Buchstaben dorthin ab. Würde man ihn
+ * mitzählen, gälte sämtlicher Text als Symbol und der Vergleich fände gar nichts mehr.
+ * Symbolschriften, die in den Private-Use-Bereich abbilden (z. B. Wingdings), werden
+ * stattdessen über den Schriftnamen erkannt.
+ */
+const SYMBOL_BLOCKS = /[←-⇿⌀-⏿─-◿☀-➿⬀-⯿]/u;
+
+/**
+ * Erkennt ein Piktogramm-Glyph, dessen Textwert nur ein Rückfall ist – etwa ein
+ * Checkbox-Kästchen, das als "A" ausgegeben wird. Drei Bedingungen müssen zutreffen:
+ *
+ *  1. Der gezeichnete Glyph (`fontChar`) weicht vom gemeldeten Textzeichen (`unicode`) ab.
+ *  2. Das gemeldete Zeichen ist ein einzelner Buchstabe/eine Ziffer (eben der Rückfall).
+ *  3. Der gezeichnete Glyph liegt in einem Symbolblock (siehe oben).
+ *
+ * Damit bleiben Ligaturen ("ﬁ"→"fi"), echte Sonderzeichen und vor allem eingebettete
+ * Textschriften ausgenommen.
  */
 export function isSymbolGlyph(glyph) {
   const fontChar = glyph?.fontChar;
   const unicode = glyph?.unicode;
   if (typeof fontChar !== 'string' || fontChar === '' || fontChar === unicode) return false;
-  // Kein Buchstabe/keine Ziffer im gezeichneten Glyph -> Symbol/Piktogramm.
-  return !/[\p{L}\p{N}]/u.test(fontChar);
+  if (typeof unicode !== 'string' || !/^[\p{L}\p{N}]$/u.test(unicode)) return false;
+  return SYMBOL_BLOCKS.test(fontChar);
 }
 
 /** Wird dieser Zustand überhaupt sichtbar gezeichnet? */
@@ -122,6 +138,34 @@ export function isInvisibleState(zustand) {
 
 /** Wie weit höchstens nach vorn gesucht wird, um ein Textelement im Zeichenstrom zu finden. */
 const MAX_SUCHFENSTER = 5000;
+
+/**
+ * Anteil, ab dem die Glyph-Erkennung als unplausibel gilt. Piktogramme sind Beiwerk – macht
+ * die Erkennung mehr als die Hälfte einer Seite aus, liegt eher eine Eigenheit der Schrift
+ * vor als eine Seite voller Kästchen.
+ */
+const MAX_SYMBOL_ANTEIL = 0.5;
+
+/**
+ * Sicherung gegen eine überschießende Glyph-Erkennung: Würde sie den Großteil einer Seite als
+ * Symbol einstufen, wird ihr nicht vertraut und das Merkmal verworfen. Die Erkennung über den
+ * Schriftnamen bleibt davon unberührt.
+ *
+ * Grund: Wird zu viel als Symbol markiert, verschwindet der Text aus dem Vergleich und es
+ * werden gar keine Abweichungen mehr gemeldet – ein stiller Totalausfall, der schlimmer ist
+ * als ein übersehenes Kästchen.
+ */
+export function verwerfeUnplausibleSymbole(symbolGlyph, items) {
+  const mitText = items
+    .map((item, index) => ({ index, hatText: String(item.str ?? '').trim() !== '' }))
+    .filter((eintrag) => eintrag.hatText);
+  if (mitText.length === 0) return symbolGlyph;
+
+  const alsSymbol = mitText.filter((eintrag) => symbolGlyph[eintrag.index]).length;
+  if (alsSymbol / mitText.length <= MAX_SYMBOL_ANTEIL) return symbolGlyph;
+
+  return symbolGlyph.map(() => false);
+}
 
 /**
  * Ordnet jedem Textelement seinen Zeichenzustand zu.
@@ -261,7 +305,12 @@ export async function extractItemStyles(page, items, pdfjs) {
     symbolGlyph.push(Boolean(zuordnung?.symbol));
   });
 
-  return { styles, invisible, symbolGlyph, colorsResolved: zuordnungPasst };
+  return {
+    styles,
+    invisible,
+    symbolGlyph: verwerfeUnplausibleSymbole(symbolGlyph, items),
+    colorsResolved: zuordnungPasst,
+  };
 }
 
 /** Kurzbeschreibung eines Stils für die Anzeige, z. B. "Helvetica-Bold 14 pt, fett, #c00000". */

@@ -185,10 +185,17 @@ in beiden Dokumenten, damit der Vergleich symmetrisch bleibt. Das Ergebnis weist
 Zeichen betroffen waren.
 
 Erkannt werden sie auf zwei Wegen: am **Schriftnamen** (Wingdings, ZapfDingbats …) und –
-unabhängig davon – am **Glyph selbst**. Weicht der tatsächlich gezeichnete Glyph vom gemeldeten
-Textzeichen ab und ist er kein Buchstabe (ein Kästchen, das als „A" ausgegeben wird), gilt der
-Textwert als Rückfall und das Zeichen als Symbol. So werden auch Checkboxen aus Schriften
-erkannt, deren Name nicht auf der Liste steht.
+unabhängig davon – am **Glyph selbst**. Der Glyph-Weg greift nur, wenn alle drei Bedingungen
+zutreffen: der gezeichnete Glyph weicht vom gemeldeten Textzeichen ab, das gemeldete Zeichen ist
+ein einzelner Buchstabe/eine Ziffer (eben der Rückfall), und der gezeichnete Glyph liegt in einem
+Symbolblock (Kästchen, Haken, Pfeile, Dingbats). So werden auch Checkboxen aus Schriften erkannt,
+deren Name nicht auf der Liste steht.
+
+Der **Private-Use-Bereich zählt bewusst nicht** als Symbol: Eingebettete Subset-Schriften – in
+echten PDFs der Normalfall – bilden ganz normale Buchstaben dorthin ab. Würde man ihn mitzählen,
+gälte sämtlicher Text als Symbol und der Vergleich meldete gar keine Abweichungen mehr. Als
+zusätzliche Sicherung wird der Glyph-Erkennung nicht vertraut, wenn sie mehr als die Hälfte einer
+Seite als Symbol einstufen würde.
 
 Abschaltbar unter „Erweiterte Einstellungen" → *Symbolzeichen beim Textvergleich ignorieren*.
 Dann zählen die Kästchen wieder als Text – sinnvoll, wenn gerade deren Vorhandensein geprüft

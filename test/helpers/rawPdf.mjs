@@ -171,3 +171,22 @@ export function makeVerticalMarginPdf(horizontaleZeilen, vertikaleTexte = []) {
   });
   return buildPdf(teile.join(' '));
 }
+
+/**
+ * PDF mit **eingebetteter** Schrift (Subset). In echten PDFs der Normalfall – und der Grund,
+ * warum die Glyph-Erkennung eng gefasst sein muss: Subset-Schriften bilden ganz normale
+ * Buchstaben in den Private-Use-Bereich ab, sähen also wie Symbole aus.
+ */
+export async function makeEmbeddedFontPdf(zeilen, schrift = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf') {
+  const { default: PDFDocument } = await import('pdfkit');
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ size: 'A4', margin: 50 });
+    const chunks = [];
+    doc.on('data', (chunk) => chunks.push(chunk));
+    doc.on('error', reject);
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.font(schrift).fontSize(12);
+    for (const zeile of zeilen) doc.text(zeile);
+    doc.end();
+  });
+}

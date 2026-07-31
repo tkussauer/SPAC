@@ -5,8 +5,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { comparePdfs } from '../src/server/lib/comparePdfs.js';
 import { extractPages } from '../src/server/lib/pdfText.js';
-import { isSymbolFont, isSymbolGlyph } from '../src/server/lib/pdfStyle.js';
-import { makeCheckboxPdf, makeSimplePdf } from './helpers/rawPdf.mjs';
+import { isSymbolFont, isSymbolGlyph, verwerfeUnplausibleSymbole } from '../src/server/lib/pdfStyle.js';
+import { makeCheckboxPdf, makeSimplePdf, makeEmbeddedFontPdf } from './helpers/rawPdf.mjs';
 import { startApp, startMockTarget, uploadReference, SAMPLE_XML, SAMPLE_TEMPLATE_PATH } from './helpers/fixtures.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -34,6 +34,78 @@ test('Symbol-Glyph: Erkennt Piktogramme am Glyph, nicht am Fontnamen', () => {
   // Unvollständige Angaben
   assert.equal(isSymbolGlyph({ unicode: 'A' }), false);
   assert.equal(isSymbolGlyph(null), false);
+});
+
+/**
+ * Eingebettete Subset-Schriften bilden normale Buchstaben in den Private-Use-Bereich ab.
+ * Würden diese als Symbol gelten, verschwände sämtlicher Text aus dem Vergleich und es
+ * würden gar keine Abweichungen mehr gemeldet.
+ */
+test('Symbol-Glyph: Private-Use-Bereich gilt nicht als Symbol', () => {
+  assert.equal(isSymbolGlyph({ fontChar: '', unicode: 'A' }), false, 'PUA ist kein Symbol');
+  assert.equal(isSymbolGlyph({ fontChar: '', unicode: 'e' }), false, 'PUA ist kein Symbol');
+  assert.equal(isSymbolGlyph({ fontChar: '', unicode: 'x' }), false, 'PUA ist kein Symbol');
+});
+
+test('Symbol-Glyph: Eingebettete Schriften bleiben normaler Text', async () => {
+  const { pages } = await extractPages(await makeEmbeddedFontPdf(['Rechnung 4711', 'Betrag 100 EUR']));
+
+  assert.ok(pages[0].words.length > 0, 'Es muss Text erkannt werden');
+  assert.deepEqual(
+    pages[0].words.filter((w) => w.symbol).map((w) => w.text),
+    [],
+    'Kein Wort einer eingebetteten Textschrift darf als Symbol gelten'
+  );
+  assert.equal(pages[0].text, 'Rechnung 4711 Betrag 100 EUR');
+});
+
+test('Symbol-Glyph: Abweichungen in eingebetteten Schriften werden gemeldet', async () => {
+  const referenz = await makeEmbeddedFontPdf(['Rechnung 4711', 'Betrag 100 EUR']);
+  const generiert = await makeEmbeddedFontPdf(['Rechnung 4711', 'Betrag 999 EUR']);
+
+  const ergebnis = await comparePdfs(referenz, generiert);
+
+  assert.equal(ergebnis.identical, false, 'Die echte Abweichung wurde verschluckt');
+  assert.equal(ergebnis.symbolGlyphs.count, 0, 'Es darf nichts als Symbol ausgefiltert werden');
+  assert.equal(ergebnis.markdown.identical, false, 'Auch der Markdown-Vergleich muss sie melden');
+  assert.ok(
+    ergebnis.pages[0].generated.highlights.some((box) => box.text.includes('999')),
+    'Der geänderte Betrag fehlt in den Markierungen'
+  );
+});
+
+test('Symbol-Glyph: Überschießender Erkennung wird nicht vertraut', () => {
+  const items = [{ str: 'Alpha' }, { str: 'Beta' }, { str: 'Gamma' }, { str: 'Delta' }];
+
+  // Vereinzelte Symbole bleiben erhalten …
+  assert.deepEqual(verwerfeUnplausibleSymbole([true, false, false, false], items), [
+    true,
+    false,
+    false,
+    false,
+  ]);
+
+  // … eine Seite, die überwiegend als Symbol gilt, wird verworfen.
+  assert.deepEqual(verwerfeUnplausibleSymbole([true, true, true, false], items), [
+    false,
+    false,
+    false,
+    false,
+  ]);
+  assert.deepEqual(verwerfeUnplausibleSymbole([true, true, true, true], items), [
+    false,
+    false,
+    false,
+    false,
+  ]);
+
+  // Genau die Hälfte gilt noch als plausibel.
+  assert.deepEqual(verwerfeUnplausibleSymbole([true, true, false, false], items), [
+    true,
+    true,
+    false,
+    false,
+  ]);
 });
 
 /** Genau das gemeldete Beispiel: vorangestelltes Checkbox-"A" vor medizinischen Angaben. */
