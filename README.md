@@ -180,9 +180,15 @@ Generiert :   einmalig   gelegentlich   bis zu einer Woche   2-3 Monate
 ```
 
 Enthält nur eines der Dokumente diese Zeichen, wären das lauter gemeldete Abweichungen,
-obwohl der Text identisch ist. Die Anwendung erkennt solche Zeichen an der Schriftart und
-**nimmt sie vom Textvergleich aus** – in beiden Dokumenten, damit der Vergleich symmetrisch
-bleibt. Das Ergebnis weist aus, wie viele Zeichen betroffen waren.
+obwohl der Text identisch ist. Die Anwendung **nimmt solche Zeichen vom Textvergleich aus** –
+in beiden Dokumenten, damit der Vergleich symmetrisch bleibt. Das Ergebnis weist aus, wie viele
+Zeichen betroffen waren.
+
+Erkannt werden sie auf zwei Wegen: am **Schriftnamen** (Wingdings, ZapfDingbats …) und –
+unabhängig davon – am **Glyph selbst**. Weicht der tatsächlich gezeichnete Glyph vom gemeldeten
+Textzeichen ab und ist er kein Buchstabe (ein Kästchen, das als „A" ausgegeben wird), gilt der
+Textwert als Rückfall und das Zeichen als Symbol. So werden auch Checkboxen aus Schriften
+erkannt, deren Name nicht auf der Liste steht.
 
 Abschaltbar unter „Erweiterte Einstellungen" → *Symbolzeichen beim Textvergleich ignorieren*.
 Dann zählen die Kästchen wieder als Text – sinnvoll, wenn gerade deren Vorhandensein geprüft

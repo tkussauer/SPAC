@@ -5,13 +5,66 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { comparePdfs } from '../src/server/lib/comparePdfs.js';
 import { extractPages } from '../src/server/lib/pdfText.js';
-import { isSymbolFont } from '../src/server/lib/pdfStyle.js';
+import { isSymbolFont, isSymbolGlyph } from '../src/server/lib/pdfStyle.js';
 import { makeCheckboxPdf, makeSimplePdf } from './helpers/rawPdf.mjs';
 import { startApp, startMockTarget, uploadReference, SAMPLE_XML, SAMPLE_TEMPLATE_PATH } from './helpers/fixtures.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const OPTIONEN = ['einmalig', 'gelegentlich', 'bis zu einer Woche', '2-3 Monate', 'Sonstiges (bitte erläutern)'];
+
+/**
+ * Zweite, fontname-unabhängige Erkennung: Ein Checkbox-Glyph wird als Symbol erkannt, weil der
+ * tatsächlich gezeichnete Glyph (`fontChar`) vom gemeldeten Textzeichen (`unicode`) abweicht
+ * und selbst kein Buchstabe ist – egal, wie die Schrift heißt. Das fängt Checkboxen aus
+ * Schriften ab, deren Name nicht auf der Liste bekannter Symbolschriften steht.
+ */
+test('Symbol-Glyph: Erkennt Piktogramme am Glyph, nicht am Fontnamen', () => {
+  // Checkbox: gezeichnet wird ein Symbol, gemeldet wird "A"
+  assert.equal(isSymbolGlyph({ fontChar: '✡', unicode: 'A' }), true);
+  assert.equal(isSymbolGlyph({ fontChar: '■', unicode: 'A' }), true);
+  assert.equal(isSymbolGlyph({ fontChar: '❑', unicode: 'q' }), true);
+  // Echter Buchstabe/Ziffer – kein Symbol
+  assert.equal(isSymbolGlyph({ fontChar: 'A', unicode: 'A' }), false);
+  assert.equal(isSymbolGlyph({ fontChar: '7', unicode: '7' }), false);
+  // Ligatur: fontChar ist ein Buchstabe -> kein Symbol
+  assert.equal(isSymbolGlyph({ fontChar: 'ﬁ', unicode: 'fi' }), false);
+  // Echtes Aufzählungszeichen (fontChar == unicode) -> kein Rückfall, kein Symbol
+  assert.equal(isSymbolGlyph({ fontChar: '•', unicode: '•' }), false);
+  // Unvollständige Angaben
+  assert.equal(isSymbolGlyph({ unicode: 'A' }), false);
+  assert.equal(isSymbolGlyph(null), false);
+});
+
+/** Genau das gemeldete Beispiel: vorangestelltes Checkbox-"A" vor medizinischen Angaben. */
+test('Symbol-Glyph: Checkbox-A vor Listeneinträgen erzeugt keine Markdown-Abweichung', async () => {
+  const eintraege = ['Eiweiß im Urin', 'Nierenerkrankung', 'Herzerkrankung', 'Fettstoffwechselstörung'];
+  const referenz = makeCheckboxPdf(eintraege, { mitKaestchen: true }); // "A Eiweiß im Urin A Nieren…"
+  const generiert = makeCheckboxPdf(eintraege, { mitKaestchen: false }); // ohne Kästchen
+
+  const ergebnis = await comparePdfs(referenz, generiert);
+
+  assert.equal(ergebnis.identical, true, 'Die Checkbox-Zeichen dürfen keine Abweichung erzeugen');
+  assert.equal(ergebnis.markdown.identical, true, 'Auch der Markdown-Vergleich darf nichts melden');
+  assert.deepEqual(
+    ergebnis.markdown.rows.filter((row) => row.type !== 'equal'),
+    [],
+    'Es darf keine geänderte Markdown-Zeile geben'
+  );
+  // Der eigentliche Text bleibt im Markdown erhalten, ohne die vorangestellten "A".
+  assert.ok(ergebnis.markdown.reference.includes('Eiweiß im Urin Nierenerkrankung'));
+  assert.ok(!ergebnis.markdown.reference.includes('A Eiweiß'));
+});
+
+/** Die Erkennung greift bereits in der Extraktion (Glyph-Pfad liefert das symbol-Merkmal). */
+test('Symbol-Glyph: Das Checkbox-A trägt in der Extraktion das symbol-Merkmal', async () => {
+  const { pages } = await extractPages(makeCheckboxPdf(['Eiweiß im Urin'], { mitKaestchen: true }));
+  const kaestchen = pages[0].words.filter((w) => w.text === 'A');
+  assert.ok(kaestchen.length > 0, 'Das Checkbox-Zeichen fehlt');
+  assert.ok(kaestchen.every((w) => w.symbol), 'Das Checkbox-A muss als Symbol markiert sein');
+  // Der echte Text bleibt unmarkiert.
+  assert.ok(pages[0].words.filter((w) => w.text === 'Eiweiß').every((w) => !w.symbol));
+});
 
 /**
  * Checkbox-Kästchen stammen aus Symbolschriften (ZapfDingbats, Wingdings …). Diesen

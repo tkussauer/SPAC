@@ -33,7 +33,12 @@ const UNSICHTBARE_RENDERMODI = new Set([3, 7]);
  * zusammenpassen. Leerraum bleibt außen vor, weil pdf.js zusätzliche Leerzeichen aus
  * Positionssprüngen erzeugt, denen kein Zeichen im PDF entspricht.
  *
- * @returns {Array<{char:string, state:{color:string, renderMode:number, alpha:number}}>}
+ * Zusätzlich wird je Zeichen erkannt, ob es sich um ein Symbol-/Piktogramm-Glyph handelt,
+ * dessen Textwert nur ein Rückfall ist: Weicht der tatsächlich gezeichnete Glyph (`fontChar`)
+ * vom gemeldeten Zeichen (`unicode`) ab und ist er selbst kein Buchstabe/Ziffer, stammt die
+ * Extraktion aus einer Symbolschrift (z. B. Checkbox-Kästchen, das als "A" ausgegeben wird).
+ *
+ * @returns {Array<{char:string, state:{color:string, renderMode:number, alpha:number}, symbol:boolean}>}
  */
 export function collectTextRenderStates(operatorList, OPS) {
   const zustaende = [];
@@ -79,9 +84,10 @@ export function collectTextRenderStates(operatorList, OPS) {
         for (const glyph of args[0] ?? []) {
           // Zahlen sind Positionssprünge (Kerning) und zeichnen nichts.
           if (typeof glyph === 'number' || glyph === null) continue;
+          const symbol = isSymbolGlyph(glyph);
           for (const zeichen of String(glyph.unicode ?? '')) {
             if (/\s/.test(zeichen)) continue;
-            zustaende.push({ char: zeichen, state: aktuell });
+            zustaende.push({ char: zeichen, state: aktuell, symbol });
           }
         }
         break;
@@ -91,6 +97,21 @@ export function collectTextRenderStates(operatorList, OPS) {
   }
 
   return zustaende;
+}
+
+/**
+ * Erkennt ein Symbol-/Piktogramm-Glyph an einem einzelnen pdf.js-Glyph.
+ * Der tatsächlich gezeichnete Glyph (`fontChar`) weicht vom gemeldeten Textzeichen
+ * (`unicode`) ab und ist selbst kein Buchstabe/keine Ziffer – dann ist der Textwert nur ein
+ * Rückfall (z. B. ein Kästchen, das als "A" ausgegeben wird). Ligaturen wie "ﬁ"→"fi" bleiben
+ * ausgenommen, da ihr `fontChar` ein Buchstabe ist.
+ */
+export function isSymbolGlyph(glyph) {
+  const fontChar = glyph?.fontChar;
+  const unicode = glyph?.unicode;
+  if (typeof fontChar !== 'string' || fontChar === '' || fontChar === unicode) return false;
+  // Kein Buchstabe/keine Ziffer im gezeichneten Glyph -> Symbol/Piktogramm.
+  return !/[\p{L}\p{N}]/u.test(fontChar);
 }
 
 /** Wird dieser Zustand überhaupt sichtbar gezeichnet? */
@@ -115,7 +136,8 @@ const MAX_SUCHFENSTER = 5000;
  * eine zufällige Fehlzuordnung ist damit praktisch ausgeschlossen. Findet sich ein Element
  * nicht, wird `null` zurückgegeben und es werden keinerlei Annahmen getroffen.
  *
- * @returns {Array<object|null>|null} Zustand je Element oder null, wenn keine Zuordnung möglich ist
+ * @returns {Array<{state:object, symbol:boolean}|null>|null} je Element der Zeichenzustand und
+ *          ob es aus einer Symbolschrift stammt; null, wenn keine Zuordnung möglich ist
  */
 export function alignStatesToItems(items, stream) {
   const jeElement = new Array(items.length).fill(null);
@@ -142,7 +164,14 @@ export function alignStatesToItems(items, stream) {
     }
 
     if (start === -1) return null;
-    jeElement[index] = stream[start].state;
+    let symbol = false;
+    for (let k = 0; k < zeichen.length; k += 1) {
+      if (stream[start + k].symbol) {
+        symbol = true;
+        break;
+      }
+    }
+    jeElement[index] = { state: stream[start].state, symbol };
     position = start + zeichen.length;
   }
 
@@ -202,6 +231,7 @@ export async function extractItemStyles(page, items, pdfjs) {
   const fontCache = new Map();
   const styles = [];
   const invisible = [];
+  const symbolGlyph = [];
 
   items.forEach((item, itemIndex) => {
 
@@ -220,15 +250,18 @@ export async function extractItemStyles(page, items, pdfjs) {
       fontCache.set(item.fontName, fontInfo);
     }
 
-    const zustand = zuordnungPasst ? zustandJeElement[itemIndex] : null;
+    const zuordnung = zuordnungPasst ? zustandJeElement[itemIndex] : null;
+    const zustand = zuordnung?.state ?? null;
     const groesse = fontSizeFromTransform(item.transform);
 
     styles.push({ ...fontInfo, size: groesse, color: zustand?.color ?? null });
     // Nicht gezeichneter Text: Rendermodus 3/7, Deckkraft 0 oder Schriftgröße 0.
     invisible.push(isInvisibleState(zustand) || groesse === 0);
+    // Symbol-/Piktogramm-Glyph, dessen Textwert nur ein Rückfall ist (z. B. Checkbox "A").
+    symbolGlyph.push(Boolean(zuordnung?.symbol));
   });
 
-  return { styles, invisible, colorsResolved: zuordnungPasst };
+  return { styles, invisible, symbolGlyph, colorsResolved: zuordnungPasst };
 }
 
 /** Kurzbeschreibung eines Stils für die Anzeige, z. B. "Helvetica-Bold 14 pt, fett, #c00000". */

@@ -145,7 +145,7 @@ test('Unsichtbar: Zuordnung verweigert sich bei unpassendem Zeichenstrom', () =>
     ...strom,
   ];
   const zugeordnet = alignStatesToItems(items, mitZusatz);
-  assert.equal(zugeordnet[0].renderMode, 0, 'Das Element muss den eigenen Zustand bekommen');
+  assert.equal(zugeordnet[0].state.renderMode, 0, 'Das Element muss den eigenen Zustand bekommen');
 
   // Fehlt ein Element im Strom, gibt es keine Zuordnung – statt zu raten
   assert.equal(alignStatesToItems([{ str: 'Fehlt' }], strom), null);

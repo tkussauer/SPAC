@@ -52,7 +52,7 @@ export function cumulativeWeights(str) {
  * Zerlegt ein pdf.js-TextItem in einzelne Wörter mit geschätzten Bounding-Boxen.
  * Die Box-Koordinaten sind in PDF-Punkten mit Ursprung oben links.
  */
-export function itemToWords(item, pageHeight, style = null, invisible = false) {
+export function itemToWords(item, pageHeight, style = null, invisible = false, symbolGlyph = false) {
   const str = item.str ?? '';
   if (str.trim() === '') return [];
 
@@ -88,7 +88,9 @@ export function itemToWords(item, pageHeight, style = null, invisible = false) {
       },
       ...(style ? { style } : {}),
       // Zeichen aus Symbolschriften sind Piktogramme (Kästchen, Haken), kein Text.
-      ...(isSymbolFont(style?.font) ? { symbol: true } : {}),
+      // Erkennung über den Schriftnamen ODER über den Glyph selbst (gezeichnetes Symbol,
+      // dessen Textwert nur ein Rückfall ist – unabhängig vom Fontnamen).
+      ...(symbolGlyph || isSymbolFont(style?.font) ? { symbol: true } : {}),
       // Text, der nicht gezeichnet wird (z. B. OCR-Textebene unter einem Scan).
       ...(invisible ? { invisible: true } : {}),
       // Vertikal gedrehter Text (seitliche Rahmenvermerke, Stempel).
@@ -259,7 +261,13 @@ export async function extractPages(buffer, { label = 'PDF' } = {}) {
       content.items.forEach((item, index) => {
         if (typeof item.str !== 'string') return;
         rohWorte.push(
-          ...itemToWords(item, viewport.height, styleInfo.styles[index] ?? null, styleInfo.invisible[index] === true)
+          ...itemToWords(
+            item,
+            viewport.height,
+            styleInfo.styles[index] ?? null,
+            styleInfo.invisible[index] === true,
+            styleInfo.symbolGlyph?.[index] === true
+          )
         );
       });
 
