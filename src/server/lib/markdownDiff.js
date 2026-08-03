@@ -1,4 +1,4 @@
-import { diffTokens, normalizeIgnoringSpaces } from './diff.js';
+import { diffTokens, foldSegmentationDifferences, normalizeIgnoringSpaces } from './diff.js';
 
 /**
  * Zeilenweiser Vergleich zweier Markdown-Fassungen, aufbereitet für eine
@@ -14,7 +14,13 @@ export function segmentLine(referenceLine, generatedLine) {
   const referenceWords = referenceLine.split(/(\s+)/).filter((part) => part !== '');
   const generatedWords = generatedLine.split(/(\s+)/).filter((part) => part !== '');
 
-  const ops = diffTokens(referenceWords, generatedWords);
+  // Reine Trennungs- und Trennstrichunterschiede sind keine Änderung und werden deshalb
+  // auch innerhalb einer Zeile nicht hervorgehoben.
+  const ops = foldSegmentationDifferences(
+    diffTokens(referenceWords, generatedWords),
+    referenceWords,
+    generatedWords
+  );
   const reference = [];
   const generated = [];
 
@@ -31,6 +37,10 @@ export function segmentLine(referenceLine, generatedLine) {
     if (op.type === 'equal') {
       push(reference, referenceWords[op.aIndex], false);
       push(generated, generatedWords[op.bIndex], false);
+    } else if (op.type === 'segmentation' || op.type === 'hyphenation') {
+      // Inhaltlich gleich, nur anders getrennt – auf beiden Seiten unmarkiert übernehmen.
+      if (op.aIndex !== null) push(reference, referenceWords[op.aIndex], false);
+      if (op.bIndex !== null) push(generated, generatedWords[op.bIndex], false);
     } else if (op.type === 'removed') {
       push(reference, referenceWords[op.aIndex], referenceWords[op.aIndex].trim() !== '');
     } else {

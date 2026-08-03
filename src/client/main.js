@@ -862,6 +862,11 @@ function renderSummary(result, comparison) {
   if (comparison.formFields?.count > 0) {
     hinweise.push(`Einbezogen: ${comparison.formFields.count} Wörter aus Formularfeldern.`);
   }
+  // Unterschiedliche Zeilenumbrüche trennen Wörter an verschiedenen Stellen – zusammengesetzt
+  // ist der Text derselbe.
+  if (comparison.hyphenation?.count > 0) {
+    hinweise.push(`Zusammengesetzt: ${comparison.hyphenation.count} am Zeilenende getrennte Wörter.`);
+  }
 
   dom.summarySymbols.hidden = hinweise.length === 0;
   dom.summarySymbols.textContent = hinweise.join(' ');

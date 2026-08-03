@@ -230,6 +230,41 @@ Schrift wie der Fließtext steckt und deshalb von keiner der drei Erkennungen er
 Weil sie auch echte Einzelbuchstaben trifft (Gliederungspunkte, Initialen), ist sie
 standardmäßig **aus**.
 
+### Am Zeilenende getrennte Wörter
+
+Zwei Dokumente mit gleichem Inhalt brechen ihre Zeilen selten an derselben Stelle um. Aus
+`nichtmilitärischen` wird dann im einen Dokument `nichtmi-` + `litärischen` und im anderen
+`nicht-` + `militärischen`:
+
+```
+Referenz  : … an polizeilichen oder anderen nichtmi-
+            litärischen Aufgaben im Rahmen …
+Generiert : … an polizeilichen oder anderen nicht-
+            militärischen Aufgaben im Rahmen …
+```
+
+Wort für Wort verglichen wären das vier Abweichungen, obwohl der Text derselbe ist. Die
+Anwendung setzt solche Wörter deshalb **wieder zusammen**, bevor verglichen wird. Zusammengesetzt
+wird nur, wenn alle Bedingungen zutreffen:
+
+- Das letzte Wort einer Zeile endet auf einen Trennstrich, und davor steht ein Buchstabe.
+  Damit bleiben `- V` oder `Ausbildungs-/` außen vor.
+- Die Fortsetzung beginnt **klein**. So bleiben echte Bindestriche in Eigennamen und
+  Abkürzungen unangetastet (`E-` / `Mail` wird nicht zu `EMail`).
+- Die beiden Zeilen folgen unmittelbar aufeinander. Über einen Absatzabstand oder eine
+  Tabellenzeile hinweg wird nichts verbunden.
+
+Zusätzlich gleicht der Wortvergleich verbliebene reine Trennstrichunterschiede aus: Ergeben
+zwei Abschnitte ohne Trennstriche denselben Text, gilt das nicht als Abweichung. Dasselbe gilt
+innerhalb einer Zeile im Markdown-Vergleich. Das Ergebnis weist aus, wie viele getrennte Wörter
+zusammengesetzt wurden.
+
+> **Was das nicht leistet:** Unterschiedliche *Umbruchstellen* bleiben im Markdown-Vergleich
+> sichtbar. Passt in der Referenz noch ein Wort auf die Zeile und im erzeugten Dokument nicht,
+> enthalten die beiden Zeilen unterschiedlich viele Wörter – der Text ist gleich, die Zeilen
+> sind es nicht. Der visuelle Vergleich ist davon nicht betroffen, weil er Wort für Wort
+> arbeitet.
+
 ### Ausgefüllte Formularfelder (AcroForm)
 
 Werte in Formularfeldern sind **kein Bestandteil des Seiteninhalts**. Im PDF steht der Wert im
@@ -586,6 +621,7 @@ sind keine Binärdateien im Repository nötig und es besteht keine Netzwerkabhä
 | Nicht sichtbare Inhalte | `test/unsichtbare-inhalte.test.js` |
 | Ausgefüllte Formularfelder (AcroForm) | `test/formularfelder.test.js` |
 | Hybrid-Formulare mit Werten im XFA-Teil | `test/xfa-formulare.test.js` |
+| Am Zeilenende getrennte Wörter | `test/trennzeichen.test.js` |
 | Kopf-/Fußzeile ausschließen, Ziel-URL in den Einstellungen | `test/kopf-fusszeile.test.js` |
 | Vertikalen Text (Rahmenvermerke) ausschließen | `test/vertikaler-text.test.js` |
 | Lesereihenfolge unabhängig von der Zeichenreihenfolge | `test/lesereihenfolge.test.js` |

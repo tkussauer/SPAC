@@ -406,6 +406,64 @@ export function markiereMarkierungsschriften(pages) {
   }));
 }
 
+/** Trennstriche am Zeilenende: Bindestrich, Hyphen, geschützter Bindestrich. */
+const TRENNSTRICH = /[-\u2010\u2011]$/;
+
+/**
+ * Höchstabstand zweier Zeilen (relativ zur Zeilenhöhe), bis zu dem sie noch als fortlaufender
+ * Text gelten. Ein größerer Abstand trennt Absätze oder Tabellenzeilen – über eine solche
+ * Lücke hinweg wird nicht zusammengeführt.
+ */
+const MAX_ZEILENABSTAND = 2.2;
+
+/**
+ * Führt Wörter zusammen, die am Zeilenende **getrennt** wurden.
+ *
+ * Zwei Dokumente mit gleichem Inhalt brechen ihre Zeilen selten an derselben Stelle um. Aus
+ * "nichtmilitärischen" wird dann einmal "nichtmi-" + "litärischen" und einmal "nicht-" +
+ * "militärischen" – Wort für Wort verglichen sind das vier Abweichungen, obwohl der Text
+ * identisch ist. Nach dem Zusammenführen steht in beiden Fassungen dasselbe Wort.
+ *
+ * Zusammengeführt wird nur, wenn alle Bedingungen zutreffen:
+ *  - Das letzte Wort der Zeile endet auf einen Trennstrich, davor steht ein Buchstabe
+ *    (schließt "- V" oder "Ausbildungs-/" aus).
+ *  - Die Fortsetzung beginnt klein – so bleiben echte Bindestriche in Eigennamen und
+ *    Abkürzungen ("E-" / "Mail") unangetastet.
+ *  - Die Zeilen folgen unmittelbar aufeinander, ohne größere Lücke.
+ *
+ * @returns {{words: Array, joined: number}}
+ */
+export function verbindeTrennungen(words) {
+  const zeilen = [];
+  for (const word of words) {
+    const letzte = zeilen[zeilen.length - 1];
+    const toleranz = Math.max(word.box.height * 0.5, 2);
+    if (letzte && Math.abs(letzte.y - word.box.y) <= toleranz) letzte.words.push(word);
+    else zeilen.push({ y: word.box.y, words: [word] });
+  }
+
+  let joined = 0;
+  for (let index = 0; index < zeilen.length - 1; index += 1) {
+    const letztes = zeilen[index].words[zeilen[index].words.length - 1];
+    const erstes = zeilen[index + 1].words[0];
+    if (!letztes || !erstes) continue;
+
+    const hoehe = Math.max(letztes.box.height, 1);
+    if (zeilen[index + 1].y - zeilen[index].y > hoehe * MAX_ZEILENABSTAND) continue;
+    if (!/\p{L}[-\u2010\u2011]$/u.test(letztes.text)) continue;
+    if (!/^\p{Ll}/u.test(erstes.text)) continue;
+    // Piktogramme und Unsichtbares gehören nie zu einem getrennten Wort.
+    if (letztes.symbol || erstes.symbol) continue;
+    if (Boolean(letztes.invisible) !== Boolean(erstes.invisible)) continue;
+
+    letztes.text = letztes.text.replace(TRENNSTRICH, '') + erstes.text;
+    zeilen[index + 1].words.shift();
+    joined += 1;
+  }
+
+  return { words: zeilen.flatMap((zeile) => zeile.words), joined };
+}
+
 /**
  * Unsichtbare Steuerzeichen (weiches Trennzeichen, Zero-Width-Zeichen, BOM) entfernen und
  * die Schreibweise vereinheitlichen (NFC). Ohne die Normalisierung gilt ein zerlegtes
@@ -451,6 +509,7 @@ export async function extractPages(buffer, { label = 'PDF' } = {}) {
 
   const pages = [];
   let colorsResolved = true;
+  let hyphenJoins = 0;
   try {
     for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber += 1) {
       const page = await doc.getPage(pageNumber);
@@ -494,16 +553,22 @@ export async function extractPages(buffer, { label = 'PDF' } = {}) {
         xfaWerte
       );
 
-      const words = sortInReadingOrder(
-        [...mergeWordFragments(rohWorte), ...formularWorte]
-          .map((word) => ({
-            ...word,
-            text: cleanText(word.text),
-            // Auch außerhalb des Seitenbereichs liegender Text ist nicht sichtbar.
-            ...(word.invisible || liegtAusserhalb(word.box, viewport) ? { invisible: true } : {}),
-          }))
-          .filter((word) => word.text !== '')
+      // Am Zeilenende getrennte Wörter wieder zusammensetzen – erst in Lesereihenfolge,
+      // denn die Fortsetzung steht am Anfang der nächsten Zeile.
+      const zusammengefuehrt = verbindeTrennungen(
+        sortInReadingOrder(
+          [...mergeWordFragments(rohWorte), ...formularWorte]
+            .map((word) => ({
+              ...word,
+              text: cleanText(word.text),
+              // Auch außerhalb des Seitenbereichs liegender Text ist nicht sichtbar.
+              ...(word.invisible || liegtAusserhalb(word.box, viewport) ? { invisible: true } : {}),
+            }))
+            .filter((word) => word.text !== '')
+        )
       );
+      const words = zusammengefuehrt.words;
+      hyphenJoins += zusammengefuehrt.joined;
 
       pages.push({
         pageNumber,
@@ -520,5 +585,10 @@ export async function extractPages(buffer, { label = 'PDF' } = {}) {
 
   // Erst über das gesamte Dokument hinweg lässt sich erkennen, welche Schrift nur
   // Markierungszeichen (Kästchen, Haken) setzt – dafür braucht es alle Seiten.
-  return { pageCount: pages.length, pages: markiereMarkierungsschriften(pages), colorsResolved };
+  return {
+    pageCount: pages.length,
+    pages: markiereMarkierungsschriften(pages),
+    colorsResolved,
+    hyphenJoins,
+  };
 }

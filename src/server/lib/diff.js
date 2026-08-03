@@ -76,7 +76,8 @@ export function diffTokens(a, b) {
 
 /** Anteil übereinstimmender Tokens (0..1). Zwei leere Listen gelten als identisch. */
 export function similarity(ops) {
-  const equal = ops.filter((op) => op.type === 'equal' || op.type === 'segmentation').length;
+  const gleichwertig = new Set(['equal', 'segmentation', 'hyphenation']);
+  const equal = ops.filter((op) => gleichwertig.has(op.type)).length;
   if (ops.length === 0) return 1;
   return Math.round((equal / ops.length) * 1000) / 1000;
 }
@@ -87,8 +88,16 @@ export function normalizeIgnoringSpaces(text) {
 }
 
 /**
+ * Vergleichsform zusätzlich ohne Trennstriche – für Wörter, die am Zeilenende unterschiedlich
+ * getrennt wurden ("nichtmi-litärischen" gegen "nicht-militärischen").
+ */
+export function normalizeIgnoringHyphenation(text) {
+  return normalizeIgnoringSpaces(text).replace(/[-\u2010\u2011]/g, '');
+}
+
+/**
  * Markiert Läufe aus Löschungen und Einfügungen, die zusammengesetzt denselben Text
- * ergeben, als "segmentation" statt als Abweichung.
+ * ergeben, als "segmentation" bzw. "hyphenation" statt als Abweichung.
  *
  * Hintergrund: PDFs kodieren Sonderzeichen gelegentlich als eigenes Textelement. Aus
  * "Selbstständige(r)" wird dann "Selbstst", "ä", "ndige(r)" – inhaltlich identisch, nur
@@ -97,6 +106,7 @@ export function normalizeIgnoringSpaces(text) {
 export function foldSegmentationDifferences(ops, a, b) {
   const ergebnis = [];
   let index = 0;
+  const istLeerraum = (op, tokens) => String(tokens[op.aIndex] ?? '').trim() === '';
 
   while (index < ops.length) {
     if (ops[index].type === 'equal') {
@@ -105,22 +115,49 @@ export function foldSegmentationDifferences(ops, a, b) {
       continue;
     }
 
-    let ende = index;
+    // Ende des Laufs suchen. Übereinstimmungen aus reinem Leerraum unterbrechen ihn nicht:
+    // Wird eine Zeile samt Leerzeichen in Tokens zerlegt, steht zwischen zwei anders
+    // getrennten Wörtern ein gleiches Leerzeichen – der Lauf gehört trotzdem zusammen.
+    let ende = index + 1;
+    let hinterLetztemUnterschied = index + 1;
+    while (ende < ops.length) {
+      if (ops[ende].type === 'equal') {
+        if (!istLeerraum(ops[ende], a)) break;
+        ende += 1;
+        continue;
+      }
+      ende += 1;
+      hinterLetztemUnterschied = ende;
+    }
+    ende = hinterLetztemUnterschied;
+
     const entfernt = [];
     const ergaenzt = [];
-    while (ende < ops.length && ops[ende].type !== 'equal') {
-      if (ops[ende].type === 'removed') entfernt.push(a[ops[ende].aIndex]);
-      else ergaenzt.push(b[ops[ende].bIndex]);
-      ende += 1;
+    for (const op of ops.slice(index, ende)) {
+      if (op.type === 'removed') entfernt.push(a[op.aIndex]);
+      else if (op.type === 'added') ergaenzt.push(b[op.bIndex]);
+      else {
+        entfernt.push(a[op.aIndex]);
+        ergaenzt.push(b[op.bIndex]);
+      }
     }
 
+    const beidseitig = entfernt.length > 0 && ergaenzt.length > 0;
     const nurAndersGetrennt =
-      entfernt.length > 0 &&
-      ergaenzt.length > 0 &&
+      beidseitig &&
       normalizeIgnoringSpaces(entfernt.join('')) === normalizeIgnoringSpaces(ergaenzt.join(''));
+    // Zusätzlich toleriert: unterschiedlich gesetzte Trennstriche. Zwei Dokumente brechen
+    // ihre Zeilen selten gleich um; der Text selbst ist dabei derselbe.
+    const nurTrennstriche =
+      !nurAndersGetrennt &&
+      beidseitig &&
+      normalizeIgnoringHyphenation(entfernt.join('')) ===
+        normalizeIgnoringHyphenation(ergaenzt.join(''));
 
+    const typ = nurAndersGetrennt ? 'segmentation' : nurTrennstriche ? 'hyphenation' : null;
     for (const op of ops.slice(index, ende)) {
-      ergebnis.push(nurAndersGetrennt ? { ...op, type: 'segmentation' } : op);
+      // Übereinstimmungen bleiben, was sie sind – umgedeutet wird nur der Unterschied.
+      ergebnis.push(typ && op.type !== 'equal' ? { ...op, type: typ } : op);
     }
     index = ende;
   }

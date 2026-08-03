@@ -288,6 +288,8 @@ export async function comparePdfs(
     verticalText: { ignored: ignoreVertical, count: verticalWords },
     // Werte aus ausgefüllten Formularfeldern, die sonst gar nicht im Vergleich auftauchten.
     formFields: { count: formFieldWords },
+    // Am Zeilenende getrennte Wörter, die wieder zusammengesetzt wurden.
+    hyphenation: { count: (referenceRaw.hyphenJoins ?? 0) + (generatedRaw.hyphenJoins ?? 0) },
     singleLetters: { ignored: ignoreSingleLetters, count: singleLetterWords },
     headerFooter: { ignored: ignoreHeaderFooter, count: headerFooterWords, headerMm, footerMm },
     style,
