@@ -29,6 +29,7 @@ const dom = {
   footerMm: el('footer-mm'),
   ignoreVertical: el('ignore-vertical'),
   ignoreSingleLetters: el('ignore-single-letters'),
+  ignoreWords: el('ignore-words'),
   advanced: el('advanced'),
   tabs: el('tabs'),
   tabPdf: el('tab-pdf'),
@@ -127,6 +128,7 @@ function loadSettings() {
     if (typeof saved.ignoreSingleLetters === 'boolean') {
       dom.ignoreSingleLetters.checked = saved.ignoreSingleLetters;
     }
+    if (typeof saved.ignoreWords === 'string') dom.ignoreWords.value = saved.ignoreWords;
     // Die erweiterten Einstellungen bleiben zugeklappt, bis sie jemand selbst aufklappt.
     if (saved.advancedOpen === true) dom.advanced?.setAttribute('open', '');
     if (typeof saved.showHighlights === 'boolean') dom.toggleHighlights.checked = saved.showHighlights;
@@ -154,6 +156,7 @@ function saveSettings() {
         footerMm: dom.footerMm.value,
         ignoreVertical: dom.ignoreVertical.checked,
         ignoreSingleLetters: dom.ignoreSingleLetters.checked,
+        ignoreWords: dom.ignoreWords.value,
         advancedOpen: dom.advanced?.hasAttribute('open') ?? false,
         showHighlights: dom.toggleHighlights.checked,
         onlyDiffLines: dom.toggleOnlyDiff.checked,
@@ -307,6 +310,7 @@ async function runComparison({ reason = 'generate' } = {}) {
         footerMm: Number(dom.footerMm.value),
         ignoreVertical: dom.ignoreVertical.checked,
         ignoreSingleLetters: dom.ignoreSingleLetters.checked,
+        ignoreWords: dom.ignoreWords.value,
       }),
     });
 
@@ -913,6 +917,12 @@ function renderSummary(result, comparison) {
   if (comparison.singleLetters?.ignored && comparison.singleLetters.count > 0) {
     ausgenommen.push(`${comparison.singleLetters.count} alleinstehende Einzelbuchstaben`);
   }
+  if (comparison.ignoredWords?.count > 0) {
+    ausgenommen.push(
+      `${comparison.ignoredWords.count} Wörter aus der Ausschlussliste ` +
+        `(${comparison.ignoredWords.entries.join(', ')})`
+    );
+  }
 
   const hinweise = [];
   if (ausgenommen.length > 0) {
@@ -1222,6 +1232,7 @@ function wireUp() {
   dom.footerMm.addEventListener('input', saveSettings);
   dom.ignoreVertical.addEventListener('change', saveSettings);
   dom.ignoreSingleLetters.addEventListener('change', saveSettings);
+  dom.ignoreWords.addEventListener('input', saveSettings);
   dom.advanced?.addEventListener('toggle', saveSettings);
   applyHeaderFooterState();
 

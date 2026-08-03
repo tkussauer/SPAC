@@ -3,6 +3,7 @@ import { diffTokens, foldSegmentationDifferences, similarity } from './diff.js';
 import { pagesToMarkdown } from './pdfMarkdown.js';
 import { buildLineDiff } from './markdownDiff.js';
 import { compareStyles } from './styleCompare.js';
+import { parseIgnoreWords, withoutIgnoredWords } from './ignoreWords.js';
 
 /**
  * Farbcodes für die Hervorhebung in der UI (FR6).
@@ -59,6 +60,24 @@ function withoutWords(dokument, trifftZu) {
       return { ...page, words, text: words.map((w) => w.text).join(' ') };
     }),
   };
+}
+
+/**
+ * Entfernt die frei gewählten Wörter/Wortfolgen aus allen Seiten und zählt, wie viele Wörter
+ * das betraf. Anders als die Merkmalsfilter arbeitet das über Folgen hinweg, damit auch
+ * mehrwortige Einträge greifen.
+ */
+function withoutPhrases(dokument, eintraege) {
+  if (eintraege.length === 0) return { dokument, removed: 0 };
+
+  let removed = 0;
+  const pages = dokument.pages.map((page) => {
+    const gefiltert = withoutIgnoredWords(page.words, eintraege);
+    removed += gefiltert.removed;
+    return { ...page, words: gefiltert.words, text: gefiltert.words.map((w) => w.text).join(' ') };
+  });
+
+  return { dokument: { ...dokument, pages }, removed };
 }
 
 function countWords(dokument, trifftZu) {
@@ -173,6 +192,7 @@ export async function comparePdfs(
     footerMm = 25,
     ignoreVertical = false,
     ignoreSingleLetters = false,
+    ignoreWords = '',
   } = {}
 ) {
   const [referenceRaw, generatedRaw] = await Promise.all([
@@ -209,8 +229,14 @@ export async function comparePdfs(
     (ignoreSingleLetters && istEinzelbuchstabe(word)) ||
     (ignoreHeaderFooter && istKopfFuss(word, page));
 
-  const reference = withoutWords(referenceRaw, auszuschliessen);
-  const generated = withoutWords(generatedRaw, auszuschliessen);
+  // Frei gewählte Wörter und Wortfolgen (z. B. Ebenenkennungen des Erzeugers).
+  const ignorierte = parseIgnoreWords(
+    Array.isArray(ignoreWords) ? ignoreWords.join(',') : ignoreWords
+  );
+  const referenzGefiltert = withoutPhrases(withoutWords(referenceRaw, auszuschliessen), ignorierte);
+  const generiertGefiltert = withoutPhrases(withoutWords(generatedRaw, auszuschliessen), ignorierte);
+  const reference = referenzGefiltert.dokument;
+  const generated = generiertGefiltert.dokument;
   const symbolWords = countWords(referenceRaw, istSymbol) + countWords(generatedRaw, istSymbol);
   const invisibleWords =
     countWords(referenceRaw, istUnsichtbar) + countWords(generatedRaw, istUnsichtbar);
@@ -290,6 +316,11 @@ export async function comparePdfs(
     formFields: { count: formFieldWords },
     // Am Zeilenende getrennte Wörter, die wieder zusammengesetzt wurden.
     hyphenation: { count: (referenceRaw.hyphenJoins ?? 0) + (generatedRaw.hyphenJoins ?? 0) },
+    // Frei gewählte Wörter/Wortfolgen, die vom Vergleich ausgenommen wurden.
+    ignoredWords: {
+      entries: ignorierte.map((eintrag) => eintrag.label),
+      count: referenzGefiltert.removed + generiertGefiltert.removed,
+    },
     singleLetters: { ignored: ignoreSingleLetters, count: singleLetterWords },
     headerFooter: { ignored: ignoreHeaderFooter, count: headerFooterWords, headerMm, footerMm },
     style,

@@ -146,6 +146,37 @@ auf weißem Grund oder Text unter einem Bild). Das ließe sich nur durch tatsäc
 und Pixelvergleich feststellen; eine Farbheuristik würde weiße Schrift auf farbigem Kasten
 fälschlich ausblenden.
 
+### Eigene Wörter vom Vergleich ausschließen
+
+Erzeugte Dokumente tragen oft technische Marken, die inhaltlich nichts bedeuten:
+Ebenenkennungen wie `EBENE-V`, Platzhalter, Vermerke des Erzeugers. Sie stehen meist nur in
+einem der beiden Dokumente und wären sonst lauter gemeldete Abweichungen.
+
+Unter „Erweiterte Einstellungen" gibt es dafür das Feld **Wörter vom Vergleich ausschließen** –
+eine kommagetrennte Liste:
+
+```
+### EBENE*, Daten von S, Entwurf
+```
+
+Regeln:
+
+- **Mehrere Wörter je Eintrag** sind erlaubt (`Daten von S`). Die Folge muss dann
+  zusammenhängend vorkommen; auseinandergerissen bleibt sie stehen.
+- **`*` steht für beliebige Zeichen.** `EBENE*` erfasst damit auch `EBENE-E` und `EBENE-V`,
+  `*Ende` alles, was darauf endet.
+- **Groß-/Kleinschreibung spielt keine Rolle**; verglichen wird in derselben Normalform wie der
+  Text selbst (Bindestrich- und Anführungszeichenvarianten vereinheitlicht).
+- Ein **führendes `###` oder `-`** darf mitkopiert werden – so lässt sich ein Eintrag direkt aus
+  der Markdown-Ansicht übernehmen.
+- Bei mehreren passenden Einträgen greift der **längste**: Stehen `EBENE` und `EBENE V` in der
+  Liste, wird die zweiwortige Folge vollständig entfernt statt nur das erste Wort.
+
+Der Ausschluss wirkt auf **beide** Dokumente und damit auf die visuelle Ansicht wie auf den
+Markdown-Vergleich. Das Ergebnis weist aus, wie viele Wörter betroffen waren und welche
+Einträge gegriffen haben. Die Liste wird im Browser gespeichert und steht beim nächsten Start
+wieder bereit.
+
 ### Kopf- und Fußzeile ausschließen
 
 In Kopf- und Fußzeile stehen häufig Datum, Seitenzahl oder Aktenzeichen – Angaben, die sich
@@ -642,6 +673,7 @@ sind keine Binärdateien im Repository nötig und es besteht keine Netzwerkabhä
 | Am Zeilenende getrennte Wörter | `test/trennzeichen.test.js` |
 | Kopf-/Fußzeile ausschließen, Ziel-URL in den Einstellungen | `test/kopf-fusszeile.test.js` |
 | Vertikalen Text (Rahmenvermerke) ausschließen | `test/vertikaler-text.test.js` |
+| Eigene Wörter vom Vergleich ausschließen | `test/ausschlussliste.test.js` |
 | Lesereihenfolge unabhängig von der Zeichenreihenfolge | `test/lesereihenfolge.test.js` |
 | Markdown-Vergleich (Textfassung, Zeilendiff, Reiter) | `test/markdown-compare.test.js` |
 | Font- und Stilvergleich (Schrift, Größe, Schnitt, Farbe) | `test/style-compare.test.js` |

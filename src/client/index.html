@@ -124,6 +124,27 @@
             also auch echte, etwa Gliederungspunkte. Deshalb standardmäßig aus.
           </span>
 
+          <label class="field">
+            <span class="field-label">Wörter vom Vergleich ausschließen</span>
+            <input
+              type="text"
+              id="ignore-words"
+              name="ignoreWords"
+              placeholder="z. B. EBENE*, Daten von S, Entwurf"
+              spellcheck="false"
+            />
+            <span class="hint">
+              Kommagetrennte Liste. Technische Marken des Erzeugers – Ebenenkennungen,
+              Platzhalter, Vermerke – stehen oft nur in einem der Dokumente und wären sonst
+              lauter gemeldete Abweichungen. Ein Eintrag darf mehrere Wörter umfassen
+              (<code>Daten von S</code>), dann muss die Folge zusammenhängend vorkommen.
+              <code>*</code> steht für beliebige Zeichen, sodass <code>EBENE*</code> auch
+              <code>EBENE-E</code> und <code>EBENE-V</code> erfasst. Groß-/Kleinschreibung
+              spielt keine Rolle; ein führendes <code>###</code> aus der Markdown-Ansicht darf
+              mitkopiert werden. Wirkt auf die visuelle Ansicht wie auf den Markdown-Vergleich.
+            </span>
+          </label>
+
           <label class="toggle">
             <input type="checkbox" id="ignore-header-footer" />
             <span>Kopf- und Fußzeile ausschließen</span>
