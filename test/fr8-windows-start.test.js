@@ -32,7 +32,7 @@ test('FR8: start.bat verwendet ein mitgeliefertes, portables Node.js', async () 
   assert.match(bat, /node\\node\.exe/, 'Portables Node.js im Ordner "node" wird nicht gesucht');
   assert.match(bat, /set "PATH=%~dp0node;/, 'Der Ordner "node" wird nicht in den PATH gelegt');
   // Ohne esbuild (reines Laufzeitpaket) muss der Build-Schritt entfallen dürfen.
-  assert.match(bat, /if not exist "public\\main\.js"/, 'Ein fertig gebautes Frontend wird nicht erkannt');
+  assert.match(bat, /if not exist "public\\app\.js"/, 'Ein fertig gebautes Frontend wird nicht erkannt');
 });
 
 test('FR8: open-browser.cmd öffnet die Anwendung im Standardbrowser', async () => {

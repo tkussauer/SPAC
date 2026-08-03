@@ -53,7 +53,7 @@ if not exist "node_modules\" (
 rem Das Frontend wird nur gebaut, wenn es fehlt oder gebaut werden kann.
 rem In einem fertigen Paket liegt "public" bereits vor - dann ist esbuild
 rem nicht noetig und der Schritt entfaellt.
-if not exist "public\main.js" (
+if not exist "public\app.js" (
   echo.
   echo   Frontend wird gebaut ...
   call npm run build
