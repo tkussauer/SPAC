@@ -246,14 +246,21 @@ Im PDF sichtbar : Name  Max Mustermann      (Wert aus dem Formularfeld)
 Extrahiert      : Name                      (Wert fehlt)
 ```
 
-Die Anwendung holt sich diese Werte deshalb aus zwei Quellen – in dieser Reihenfolge:
+Die Anwendung holt sich diese Werte deshalb aus drei Quellen – in dieser Reihenfolge:
 
 1. **Was gezeichnet wird.** Der Erscheinungsstrom einer Annotation steht in der Operatorliste;
    pdf.js klammert ihn mit `beginAnnotation`/`endAnnotation` und nennt dabei das Feld. Manche
-   Erzeuger schreiben den Wert *ausschließlich* dorthin und lassen `/V` leer – dann ist das die
-   einzige Quelle.
+   Erzeuger schreiben den Wert *ausschließlich* dorthin und lassen `/V` leer.
 2. **Der Feldwert `/V`.** Er greift, wenn gar kein Erscheinungsstrom hinterlegt ist
-   (`/NeedAppearances`) – klassisch der Fall, in dem nur der Acrobat Reader etwas anzeigt.
+   (`/NeedAppearances`).
+3. **Der XFA-Teil.** Bei einem *Hybrid-Formular* sind die AcroForm-Felder leer und haben keinen
+   Erscheinungsstrom – der Wert steht nur im XFA-Template als
+   `<field name="…"><value><text>…</text></value>`. So erzeugt es z. B. **Quadient Inspire**.
+   Erst der Acrobat Reader baut daraus die sichtbare Seite auf; jeder andere Betrachter – auch
+   die PDF-Ansicht dieser Anwendung – zeigt an der Stelle nichts. Der XFA-Teil wird deshalb
+   ausgelesen und über den Feldnamen zugeordnet (`Formular[0].Feldname[0]` → `Feldname`).
+   Ist ein Name mehrdeutig, wird er verworfen statt geraten. Siehe
+   [`src/server/lib/xfa.js`](src/server/lib/xfa.js).
 
 Vorrang hat das Gezeichnete, denn verglichen wird, was zu sehen ist. Berücksichtigt werden
 Textfelder (`Tx`) und Auswahllisten (`Ch`); Ankreuzfelder
@@ -572,6 +579,7 @@ sind keine Binärdateien im Repository nötig und es besteht keine Netzwerkabhä
 | Symbolzeichen (Checkboxen) im Textvergleich | `test/symbolzeichen.test.js` |
 | Nicht sichtbare Inhalte | `test/unsichtbare-inhalte.test.js` |
 | Ausgefüllte Formularfelder (AcroForm) | `test/formularfelder.test.js` |
+| Hybrid-Formulare mit Werten im XFA-Teil | `test/xfa-formulare.test.js` |
 | Kopf-/Fußzeile ausschließen, Ziel-URL in den Einstellungen | `test/kopf-fusszeile.test.js` |
 | Vertikalen Text (Rahmenvermerke) ausschließen | `test/vertikaler-text.test.js` |
 | Lesereihenfolge unabhängig von der Zeichenreihenfolge | `test/lesereihenfolge.test.js` |

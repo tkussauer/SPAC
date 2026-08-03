@@ -15,6 +15,7 @@ import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { extractPages } from '../src/server/lib/pdfText.js';
 import { collectAnnotationTexts } from '../src/server/lib/pdfStyle.js';
+import { xfaFieldValues, xfaLookupName } from '../src/server/lib/xfa.js';
 
 const require = createRequire(import.meta.url);
 
@@ -62,7 +63,11 @@ zeile(`Reines XFA       : ${doc.isPureXfa ? 'JA – dynamisches Formular, nur Ac
 const roh = buffer.toString('latin1');
 const hatXfa = roh.includes('/XFA');
 const hatNeedAppearances = /\/NeedAppearances\s+true/.test(roh);
-zeile(`XFA-Daten        : ${hatXfa ? 'ja (Hinweis aus der Rohsuche)' : 'nicht gefunden'}`);
+const xfaWerte = xfaFieldValues(buffer);
+zeile(
+  `XFA-Daten        : ${hatXfa ? 'ja' : 'nicht gefunden'}` +
+    `${xfaWerte.size > 0 ? ` – ${xfaWerte.size} Feldwerte darin` : ''}`
+);
 zeile(`NeedAppearances  : ${hatNeedAppearances ? 'ja – Erscheinungsstroeme erzeugt erst der Betrachter' : 'nein'}`);
 
 let fieldObjects = null;
@@ -132,9 +137,11 @@ for (let nummer = 1; nummer <= doc.numPages; nummer += 1) {
         `Feldwert: ${leer ? '(leer)' : kuerzen(wert, 30)}` +
         `${merkmale.length > 0 ? `   [${merkmale.join(', ')}]` : ''}`
     );
+    const ausXfa = xfaWerte.get(xfaLookupName(widget.fieldName));
     zeile(
       `      ${' '.repeat(24)}      gezeichnet: ` +
-        `${gezeichneterWert ? kuerzen(gezeichneterWert, 30) : '(nichts)'}`
+        `${gezeichneterWert ? kuerzen(gezeichneterWert, 30) : '(nichts)'}` +
+        `${ausXfa ? `   XFA: ${kuerzen(ausXfa, 30)}` : ''}`
     );
   }
 }
@@ -185,8 +192,7 @@ if (doc.isPureXfa) {
   zeile('  Acrobat) fehlen, stehen sie schlicht nicht im Dokument - dann liegt es am');
   zeile('  erzeugenden Dienst und nicht an der Anwendung.');
   if (hatXfa) {
-    zeile('  Achtung: Das Dokument enthaelt XFA-Daten. Moeglicherweise stehen die Werte nur');
-    zeile('  dort und werden erst vom Acrobat Reader in die Felder uebernommen.');
+    zeile('  Achtung: Das Dokument enthaelt XFA-Daten, aber auch dort steht kein Feldwert.');
   }
 } else {
   zeile(`  ${ausFeldern.length} Woerter aus Formularfeldern gehen in den Vergleich ein.`);

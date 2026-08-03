@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url';
 import { AppError } from './errors.js';
 import { looksLikePdf } from './validate.js';
 import { extractItemStyles, isSymbolFont, normalizeFontName, toHexColor } from './pdfStyle.js';
+import { xfaFieldValues, xfaLookupName } from './xfa.js';
 
 const require = createRequire(import.meta.url);
 
@@ -131,17 +132,20 @@ export function itemToWords(item, pageHeight, style = null, invisible = false, s
  *
  * Vorrang hat das Gezeichnete: Verglichen wird, was zu sehen ist.
  */
-function feldwert(annotation, annotationTexts) {
+function feldwert(annotation, annotationTexts, xfaWerte) {
   const gezeichnet = annotationTexts.get(annotation.id);
   if (typeof gezeichnet === 'string' && gezeichnet.trim() !== '') return gezeichnet;
 
   const wert = Array.isArray(annotation.fieldValue)
     ? annotation.fieldValue.join(' ')
     : annotation.fieldValue;
-  return typeof wert === 'string' && wert.trim() !== '' ? wert : null;
+  if (typeof wert === 'string' && wert.trim() !== '') return wert;
+
+  const ausXfa = xfaWerte?.get(xfaLookupName(annotation.fieldName));
+  return typeof ausXfa === 'string' && ausXfa.trim() !== '' ? ausXfa : null;
 }
 
-export function annotationsToWords(annotations, viewport, annotationTexts = new Map()) {
+export function annotationsToWords(annotations, viewport, annotationTexts = new Map(), xfaWerte = new Map()) {
   const words = [];
 
   for (const annotation of annotations ?? []) {
@@ -151,7 +155,7 @@ export function annotationsToWords(annotations, viewport, annotationTexts = new 
     // Textvergleich nichts verloren, genau wie ein gezeichnetes Kästchen.
     if (annotation.fieldType !== 'Tx' && annotation.fieldType !== 'Ch') continue;
 
-    const wert = feldwert(annotation, annotationTexts);
+    const wert = feldwert(annotation, annotationTexts, xfaWerte);
     if (wert === null) continue;
 
     const [x1, y1, x2, y2] = annotation.rect ?? [0, 0, 0, 0];
@@ -435,6 +439,10 @@ export async function extractPages(buffer, { label = 'PDF' } = {}) {
     );
   }
 
+  // Feldwerte aus dem XFA-Teil: letzte Quelle, wenn weder etwas gezeichnet wird noch ein
+  // Feldwert gesetzt ist (Hybrid-Formulare, die nur der Acrobat Reader darstellt).
+  const xfaWerte = xfaFieldValues(buffer);
+
   const pages = [];
   let colorsResolved = true;
   try {
@@ -473,7 +481,12 @@ export async function extractPages(buffer, { label = 'PDF' } = {}) {
       // und unsichtbare Steuerzeichen entfernen.
       // Reihenfolge: erst zusammenführen (dafür zählt die Zeichenreihenfolge),
       // danach in Lesereihenfolge bringen.
-      const formularWorte = annotationsToWords(annotations, viewport, styleInfo.annotationTexts);
+      const formularWorte = annotationsToWords(
+        annotations,
+        viewport,
+        styleInfo.annotationTexts,
+        xfaWerte
+      );
 
       const words = sortInReadingOrder(
         [...mergeWordFragments(rohWorte), ...formularWorte]

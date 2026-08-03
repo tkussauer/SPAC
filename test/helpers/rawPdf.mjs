@@ -236,9 +236,13 @@ export async function makeEmbeddedFontPdf(zeilen, schrift = '/usr/share/fonts/tr
  *  - 'versteckt'      : Feld mit gesetztem Hidden-Flag
  *  - 'nurAppearance'  : Wert steht ausschliesslich im Erscheinungsstrom, `/V` bleibt leer –
  *                       so arbeiten manche Erzeuger, und dann ist der Feldwert keine Quelle
+ *  - 'nurXfa'         : Hybrid-Formular. Die Felder sind leer und haben keinen
+ *                       Erscheinungsstrom; der Wert steht nur im XFA-Template. So erzeugt es
+ *                       z. B. Quadient Inspire – sichtbar wird es dann nur im Acrobat Reader.
  */
 export function makeFormFieldPdf(felder, varianten = []) {
-  const ohneAppearance = varianten.includes('ohneAppearance');
+  const nurXfa = varianten.includes('nurXfa');
+  const ohneAppearance = varianten.includes('ohneAppearance') || nurXfa;
   const nurAppearance = varianten.includes('nurAppearance');
   const versteckt = varianten.includes('versteckt');
   const objs = [];
@@ -268,7 +272,8 @@ export function makeFormFieldPdf(felder, varianten = []) {
     const rect = `[200 ${y - 3} 460 ${y + 13}]`;
     // Flags: 4 = Print, 2 = Hidden
     objs[feld] =
-      `<< /Type /Annot /Subtype /Widget /FT /Tx /T (feld${index}) /V (${nurAppearance ? '' : esc(value)}) ` +
+      `<< /Type /Annot /Subtype /Widget /FT /Tx /T (feld${index}) ` +
+      `/V (${nurAppearance || nurXfa ? '' : esc(value)}) ` +
       `/Rect ${rect} /F ${versteckt ? 2 : 4} /DA (/Helv 10 Tf 0 g) ` +
       `${ohneAppearance ? '' : `/AP << /N ${ap} 0 R >> `}>>`;
 
@@ -278,5 +283,27 @@ export function makeFormFieldPdf(felder, varianten = []) {
       `/Resources << /Font << /Helv 5 0 R >> >> /Length ${strom.length} >>\nstream\n${strom}\nendstream`;
   });
 
-  return assemble(objs, ersteFeldNummer + felder.length * 2 - 1);
+  let anzahl = ersteFeldNummer + felder.length * 2 - 1;
+
+  if (nurXfa) {
+    // XFA-Template mit den Feldwerten. Der Datenstrom bleibt unkomprimiert, damit die Vorlage
+    // lesbar bleibt; die Erkennung kommt mit beidem zurecht.
+    const xfa =
+      `<?xml version="1.0" encoding="UTF-8"?><xdp:xdp xmlns:xdp="http://ns.adobe.com/xdp/">` +
+      `<template xmlns="http://www.xfa.org/schema/xfa-template/2.4/"><subform name="Formular">` +
+      felder
+        .map(
+          (feld, index) =>
+            `<field name="feld${index}"><ui><textEdit/></ui>` +
+            `<value><text>${String(feld.value).replace(/&/g, '&amp;').replace(/</g, '&lt;')}</text></value>` +
+            `</field>`
+        )
+        .join('') +
+      `</subform></template></xdp:xdp>`;
+    anzahl += 1;
+    objs[anzahl] = `<< /Length ${xfa.length} >>\nstream\n${xfa}\nendstream`;
+    objs[1] = objs[1].replace('/AcroForm << ', `/AcroForm << /XFA ${anzahl} 0 R `);
+  }
+
+  return assemble(objs, anzahl);
 }
