@@ -832,6 +832,32 @@ button.small {
   border-style: dashed;
 }
 
+/*
+ * Werte aus Formularfeldern, die im PDF selbst nirgends gezeichnet sind (Hybrid-Formulare:
+ * der Wert steht nur im XFA-Teil). Ohne diese Einblendung bliebe die Seite an der Stelle leer,
+ * obwohl der Wert zum Dokument gehoert und mitverglichen wird. Die gepunktete Linie macht
+ * kenntlich, dass die Anwendung ihn eingesetzt hat und er nicht aus dem Seiteninhalt stammt.
+ */
+.form-value {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  white-space: nowrap;
+  line-height: 1;
+  color: #14532d;
+  background: rgba(34, 197, 94, 0.12);
+  border-bottom: 1px dotted #16a34a;
+  cursor: help;
+}
+
+.legend-swatch.form-value-swatch {
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid #16a34a;
+  border-style: none none dotted none;
+  border-bottom-width: 2px;
+}
+
 .pane-missing {
   border: 1px dashed var(--diff);
   border-radius: 6px;

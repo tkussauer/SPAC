@@ -163,7 +163,30 @@ test('FR6: Die Bedeutung der Markierungsarten steht als Legende in der Oberfläc
   assert.match(legende, /weicht ab/, 'Erklärung für abweichenden Text fehlt');
   assert.match(legende, /fehlt/, 'Erklärung für fehlenden Text fehlt');
   assert.match(legende, /legend-swatch missing/, 'Farbmuster für fehlenden Text fehlt');
-  assert.equal((legende.match(/legend-swatch/g) ?? []).length, 2, 'Es werden zwei Farbmuster erwartet');
+  // Genau zwei Markierungsarten – weitere Legendeneinträge (etwa eingeblendete Formularwerte)
+  // sind keine Markierungen und tragen ein eigenes Farbmuster.
+  const markierungsmuster = legende.match(/legend-swatch(?![ -]?form-value)/g) ?? [];
+  assert.equal(markierungsmuster.length, 2, 'Es werden zwei Farbmuster erwartet');
+});
+
+/**
+ * Werte aus Hybrid-Formularen stehen nur im XFA-Teil und werden von keinem Betrachter
+ * gezeichnet. Die Anwendung setzt sie in die Seitenansicht ein – sonst fehlt in der visuellen
+ * Prüfung genau der Inhalt, der im Markdown-Vergleich auftaucht.
+ */
+test('FR6: Nicht gezeichnete Formularwerte werden in der Seitenansicht eingeblendet', async () => {
+  const html = await readFile(path.join(root, 'src/client/index.html'), 'utf8');
+  const eintrag = html.match(/<span class="legend-item" id="legend-form-values"[^>]*>/)?.[0];
+  assert.ok(eintrag, 'Legendeneintrag für eingeblendete Formularwerte fehlt');
+  assert.match(eintrag, /hidden/, 'Der Eintrag darf nur bei vorhandenen Werten erscheinen');
+
+  const client = await readFile(path.join(root, 'src/client/main.js'), 'utf8');
+  assert.match(client, /geometry\?\.formValues \?\? \[\]/, 'Die Werte werden nicht gezeichnet');
+  assert.match(client, /className = 'form-value'/);
+  assert.match(client, /legendFormValues/, 'Die Legende wird nicht ein-/ausgeblendet');
+
+  const css = await readFile(path.join(root, 'src/client/styles.css'), 'utf8');
+  assert.match(css, /\.form-value\s*\{[^}]*position:\s*absolute/s, 'Die Einblendung wird nicht positioniert');
 });
 
 test('FR6: Die Seiten nutzen die volle Spaltenbreite', async () => {

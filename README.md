@@ -262,6 +262,12 @@ Die Anwendung holt sich diese Werte deshalb aus drei Quellen – in dieser Reihe
    Ist ein Name mehrdeutig, wird er verworfen statt geraten. Siehe
    [`src/server/lib/xfa.js`](src/server/lib/xfa.js).
 
+Werte aus Quelle 3 zeichnet **kein** Betrachter – die Seitenansicht bliebe an dieser Stelle
+leer, obwohl der Wert zum Dokument gehört und mitverglichen wird. Die Anwendung setzt sie
+deshalb selbst in die Seitenansicht ein, grün hinterlegt mit gepunkteter Linie, damit erkennbar
+bleibt, dass sie nicht aus dem Seiteninhalt stammen. Die Legende blendet den passenden Eintrag
+ein, sobald es solche Werte gibt.
+
 Vorrang hat das Gezeichnete, denn verglichen wird, was zu sehen ist. Berücksichtigt werden
 Textfelder (`Tx`) und Auswahllisten (`Ch`); Ankreuzfelder
 (`Btn`) tragen keinen Text, sondern einen technischen Wert (`Off`, `1`) und bleiben außen vor –

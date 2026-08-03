@@ -45,6 +45,7 @@ const dom = {
   markdownDownload: el('markdown-download'),
   toggleOnlyDiff: el('toggle-only-diff'),
   viewControls: el('view-controls'),
+  legendFormValues: el('legend-form-values'),
   toggleHighlights: el('toggle-highlights'),
   diagnostics: el('diagnostics'),
   diagnosticsContent: el('diagnostics-content'),
@@ -104,38 +105,26 @@ function loadSettings() {
     if (typeof saved.templatePath === 'string') dom.templatePath.value = saved.templatePath;
     if (typeof saved.contentType === 'string' && saved.contentType.trim()) {
       dom.contentType.value = saved.contentType;
-      if (saved.contentType !== dom.contentType.defaultValue) dom.advanced?.setAttribute('open', '');
     }
     if (saved.lineEnding === 'lf' || saved.lineEnding === 'crlf' || saved.lineEnding === 'keep') {
       dom.lineEnding.value = saved.lineEnding;
-      if (saved.lineEnding !== 'lf') dom.advanced?.setAttribute('open', '');
     }
     if (typeof saved.extraHeaders === 'string' && saved.extraHeaders.trim()) {
       dom.extraHeaders.value = saved.extraHeaders;
-      dom.advanced?.setAttribute('open', '');
     }
-    if (typeof saved.ignoreInvisible === 'boolean') {
-      dom.ignoreInvisible.checked = saved.ignoreInvisible;
-      if (!saved.ignoreInvisible) dom.advanced?.setAttribute('open', '');
-    }
-    if (typeof saved.ignoreSymbols === 'boolean') {
-      dom.ignoreSymbols.checked = saved.ignoreSymbols;
-      if (!saved.ignoreSymbols) dom.advanced?.setAttribute('open', '');
-    }
+    if (typeof saved.ignoreInvisible === 'boolean') dom.ignoreInvisible.checked = saved.ignoreInvisible;
+    if (typeof saved.ignoreSymbols === 'boolean') dom.ignoreSymbols.checked = saved.ignoreSymbols;
     if (typeof saved.ignoreHeaderFooter === 'boolean') {
       dom.ignoreHeaderFooter.checked = saved.ignoreHeaderFooter;
-      if (saved.ignoreHeaderFooter) dom.advanced?.setAttribute('open', '');
     }
     if (saved.headerMm !== undefined && saved.headerMm !== '') dom.headerMm.value = saved.headerMm;
     if (saved.footerMm !== undefined && saved.footerMm !== '') dom.footerMm.value = saved.footerMm;
-    if (typeof saved.ignoreVertical === 'boolean') {
-      dom.ignoreVertical.checked = saved.ignoreVertical;
-      if (saved.ignoreVertical) dom.advanced?.setAttribute('open', '');
-    }
+    if (typeof saved.ignoreVertical === 'boolean') dom.ignoreVertical.checked = saved.ignoreVertical;
     if (typeof saved.ignoreSingleLetters === 'boolean') {
       dom.ignoreSingleLetters.checked = saved.ignoreSingleLetters;
-      if (saved.ignoreSingleLetters) dom.advanced?.setAttribute('open', '');
     }
+    // Die erweiterten Einstellungen bleiben zugeklappt, bis sie jemand selbst aufklappt.
+    if (saved.advancedOpen === true) dom.advanced?.setAttribute('open', '');
     if (typeof saved.showHighlights === 'boolean') dom.toggleHighlights.checked = saved.showHighlights;
     if (typeof saved.onlyDiffLines === 'boolean') dom.toggleOnlyDiff.checked = saved.onlyDiffLines;
     if (TABS.includes(saved.activeTab)) state.activeTab = saved.activeTab;
@@ -161,6 +150,7 @@ function saveSettings() {
         footerMm: dom.footerMm.value,
         ignoreVertical: dom.ignoreVertical.checked,
         ignoreSingleLetters: dom.ignoreSingleLetters.checked,
+        advancedOpen: dom.advanced?.hasAttribute('open') ?? false,
         showHighlights: dom.toggleHighlights.checked,
         onlyDiffLines: dom.toggleOnlyDiff.checked,
         activeTab: state.activeTab,
@@ -903,6 +893,11 @@ async function renderPages(result, comparison) {
   dom.viewer.hidden = false;
   dom.viewer.replaceChildren();
   dom.viewControls.hidden = false;
+  // Der Legendeneintrag zu eingeblendeten Formularwerten erscheint nur, wenn es welche gibt.
+  const hatFormularwerte = (comparison.pages ?? []).some(
+    (page) => (page.reference?.formValues?.length ?? 0) + (page.generated?.formValues?.length ?? 0) > 0
+  );
+  if (dom.legendFormValues) dom.legendFormValues.hidden = !hatFormularwerte;
 
   const [referenceDoc, generatedDoc] = await Promise.all([
     result.referenceUrl ? loadPdf(result.referenceUrl) : null,
@@ -1084,6 +1079,22 @@ async function renderPageInto(wrapper, doc, pageNumber, highlights, geometry) {
         : `Weicht von der Referenz ab: ${box.text ?? ''}`.trim();
     wrapper.append(marker);
   }
+
+  // Feldwerte, die im PDF nirgends gezeichnet sind (Hybrid-Formulare, siehe README):
+  // Die Seite bliebe dort leer, obwohl der Wert zum Dokument gehört und verglichen wird.
+  for (const feld of geometry?.formValues ?? []) {
+    const wert = document.createElement('div');
+    wert.className = 'form-value';
+    wert.style.left = `${(feld.x / baseWidth) * 100}%`;
+    wert.style.top = `${(feld.y / baseHeight) * 100}%`;
+    wert.style.width = `${(feld.width / baseWidth) * 100}%`;
+    wert.style.height = `${(feld.height / baseHeight) * 100}%`;
+    // Schriftgröße an der Feldhöhe ausrichten, damit der Wert ins Feld passt.
+    wert.style.fontSize = `${feld.height * (cssWidth / baseWidth) * 0.8}px`;
+    wert.textContent = feld.text;
+    wert.title = `Wert aus dem Formularfeld – im PDF selbst nicht gezeichnet: ${feld.text}`;
+    wrapper.append(wert);
+  }
 }
 
 // ------------------------------------------------------------------- Events
@@ -1142,6 +1153,7 @@ function wireUp() {
   dom.footerMm.addEventListener('input', saveSettings);
   dom.ignoreVertical.addEventListener('change', saveSettings);
   dom.ignoreSingleLetters.addEventListener('change', saveSettings);
+  dom.advanced?.addEventListener('toggle', saveSettings);
   applyHeaderFooterState();
 
   // Markierungen ein-/ausblenden (Zustand bleibt erhalten)

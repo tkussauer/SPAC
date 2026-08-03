@@ -84,6 +84,18 @@ export function makeHeaderFooterPredicate(headerMm, footerMm) {
   };
 }
 
+/**
+ * Feldwerte, die **kein Betrachter zeichnet**: Sie stehen nur im XFA-Teil eines
+ * Hybrid-Formulars. Die Seitenansicht bliebe an dieser Stelle leer, obwohl der Wert zum
+ * Dokument gehört – deshalb bekommt die Oberfläche Text und Position, um ihn selbst
+ * einzusetzen.
+ */
+export function nichtGezeichneteFeldwerte(page) {
+  return (page?.words ?? [])
+    .filter((word) => word.formSource === 'xfa')
+    .map((word) => ({ ...word.box, text: word.text }));
+}
+
 /** Vergleicht eine einzelne Seite (FR5) und liefert die Hervorhebungsboxen (FR6). */
 export function comparePage(referencePage, generatedPage) {
   const refWords = referencePage?.words ?? [];
@@ -126,10 +138,20 @@ export function comparePage(referencePage, generatedPage) {
     generatedPresent: Boolean(generatedPage),
     // Die Referenzseite wird ohne Markierungen dargestellt.
     reference: referencePage
-      ? { width: referencePage.width, height: referencePage.height, highlights: [] }
+      ? {
+          width: referencePage.width,
+          height: referencePage.height,
+          highlights: [],
+          formValues: nichtGezeichneteFeldwerte(referencePage),
+        }
       : null,
     generated: generatedPage
-      ? { width: generatedPage.width, height: generatedPage.height, highlights }
+      ? {
+          width: generatedPage.width,
+          height: generatedPage.height,
+          highlights,
+          formValues: nichtGezeichneteFeldwerte(generatedPage),
+        }
       : null,
     counts: { removedWords: missing.length, addedWords: added.length },
   };
@@ -225,12 +247,20 @@ export async function comparePdfs(
       similarity: 0,
       referencePresent: Boolean(referencePage),
       generatedPresent: Boolean(generatedPage),
-      reference: referencePage ? { width: page.width, height: page.height, highlights: [] } : null,
+      reference: referencePage
+        ? {
+            width: page.width,
+            height: page.height,
+            highlights: [],
+            formValues: nichtGezeichneteFeldwerte(page),
+          }
+        : null,
       generated: generatedPage
         ? {
             width: page.width,
             height: page.height,
             highlights: mergeBoxes(page.words.map((w) => ({ ...w.box, text: w.text, type: 'added' }))),
+            formValues: nichtGezeichneteFeldwerte(page),
           }
         : null,
       counts: {

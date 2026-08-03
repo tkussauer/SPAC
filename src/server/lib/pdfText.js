@@ -134,15 +134,17 @@ export function itemToWords(item, pageHeight, style = null, invisible = false, s
  */
 function feldwert(annotation, annotationTexts, xfaWerte) {
   const gezeichnet = annotationTexts.get(annotation.id);
-  if (typeof gezeichnet === 'string' && gezeichnet.trim() !== '') return gezeichnet;
+  if (typeof gezeichnet === 'string' && gezeichnet.trim() !== '') {
+    return { text: gezeichnet, quelle: 'appearance' };
+  }
 
   const wert = Array.isArray(annotation.fieldValue)
     ? annotation.fieldValue.join(' ')
     : annotation.fieldValue;
-  if (typeof wert === 'string' && wert.trim() !== '') return wert;
+  if (typeof wert === 'string' && wert.trim() !== '') return { text: wert, quelle: 'value' };
 
   const ausXfa = xfaWerte?.get(xfaLookupName(annotation.fieldName));
-  return typeof ausXfa === 'string' && ausXfa.trim() !== '' ? ausXfa : null;
+  return typeof ausXfa === 'string' && ausXfa.trim() !== '' ? { text: ausXfa, quelle: 'xfa' } : null;
 }
 
 export function annotationsToWords(annotations, viewport, annotationTexts = new Map(), xfaWerte = new Map()) {
@@ -155,8 +157,9 @@ export function annotationsToWords(annotations, viewport, annotationTexts = new 
     // Textvergleich nichts verloren, genau wie ein gezeichnetes Kästchen.
     if (annotation.fieldType !== 'Tx' && annotation.fieldType !== 'Ch') continue;
 
-    const wert = feldwert(annotation, annotationTexts, xfaWerte);
-    if (wert === null) continue;
+    const quelle = feldwert(annotation, annotationTexts, xfaWerte);
+    if (quelle === null) continue;
+    const wert = quelle.text;
 
     const [x1, y1, x2, y2] = annotation.rect ?? [0, 0, 0, 0];
     const links = Math.min(x1, x2);
@@ -206,6 +209,9 @@ export function annotationsToWords(annotations, viewport, annotationTexts = new 
           // Ausgeblendete Felder werden nicht gezeichnet – wie unsichtbarer Text im Inhalt.
           ...(annotation.hidden ? { invisible: true } : {}),
           formField: true,
+          // Woher der Wert stammt. Nur "xfa" wird von keinem Betrachter gezeichnet – die
+          // Oberfläche setzt solche Werte deshalb selbst in die Seitenansicht ein.
+          formSource: quelle.quelle,
         });
       }
     });
