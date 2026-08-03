@@ -67,3 +67,21 @@ test('FR8/NFR1: Es werden keine nativen oder Online-Abhängigkeiten benötigt', 
   const html = await readFile(path.join(root, 'src/client/index.html'), 'utf8');
   assert.doesNotMatch(html, /src="https?:\/\//, 'Die Seite darf keine externen Skripte einbinden');
 });
+
+/**
+ * Fehlt ein Inhalt im Vergleich, muss sich ohne Kommandozeilenkenntnisse nachsehen lassen,
+ * was die Anwendung im PDF sieht: PDF auf diagnose.bat ziehen, fertig.
+ */
+test('FR8: diagnose.bat untersucht ein PDF per Drag & Drop', async () => {
+  const batPath = path.join(root, 'diagnose.bat');
+  await access(batPath, constants.F_OK);
+  const bat = await readFile(batPath, 'utf8');
+
+  assert.match(bat, /\r\n/, 'Batch-Dateien benötigen Windows-Zeilenenden (CRLF)');
+  assert.match(bat, /cd \/d "%~dp0"/);
+  assert.match(bat, /node\\node\.exe/, 'Portables Node.js wird nicht gefunden');
+  assert.match(bat, /scripts\\pdf-diagnose\.mjs/, 'Das Diagnosewerkzeug wird nicht aufgerufen');
+  assert.match(bat, /set "PDF=%~1"/, 'Ein gezogener Dateipfad wird nicht übernommen');
+  assert.match(bat, /set \/p "PDF=/, 'Ohne Argument muss nach dem Pfad gefragt werden');
+  assert.match(bat, /diagnose-ausgabe\.txt/, 'Die Ausgabe wird nicht zum Verschicken gesichert');
+});

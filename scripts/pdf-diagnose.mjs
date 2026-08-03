@@ -56,6 +56,15 @@ const { info } = await doc.getMetadata().catch(() => ({ info: {} }));
 zeile(`Erzeugt von      : ${info?.Producer || 'unbekannt'} / ${info?.Creator || 'unbekannt'}`);
 zeile(`Reines XFA       : ${doc.isPureXfa ? 'JA – dynamisches Formular, nur Acrobat stellt es dar' : 'nein'}`);
 
+// Rohsuche in den Bytes: erfasst auch hybride Formulare, bei denen pdf.js kein reines XFA
+// meldet, die Daten aber trotzdem im XFA-Teil stehen. Bei komprimierten Objektstroemen kann
+// die Suche fehlgehen – deshalb nur als Hinweis.
+const roh = buffer.toString('latin1');
+const hatXfa = roh.includes('/XFA');
+const hatNeedAppearances = /\/NeedAppearances\s+true/.test(roh);
+zeile(`XFA-Daten        : ${hatXfa ? 'ja (Hinweis aus der Rohsuche)' : 'nicht gefunden'}`);
+zeile(`NeedAppearances  : ${hatNeedAppearances ? 'ja – Erscheinungsstroeme erzeugt erst der Betrachter' : 'nein'}`);
+
 let fieldObjects = null;
 try {
   fieldObjects = await doc.getFieldObjects();
@@ -160,13 +169,27 @@ if (mitText) {
 }
 
 zeile();
+zeile('Einschaetzung');
+zeile('-'.repeat(78));
 if (doc.isPureXfa) {
-  zeile('HINWEIS: Das ist ein dynamisches XFA-Formular. Der sichtbare Inhalt wird erst vom');
-  zeile('         Acrobat Reader erzeugt und steht so nicht im PDF. Ein Vergleich ist erst');
-  zeile('         moeglich, wenn der Zielservice ein normales PDF ausliefert.');
-} else if (felder.length > 0 && ausFeldern.length === 0) {
-  zeile('HINWEIS: Es gibt Formularfelder, aber keines liefert Text fuer den Vergleich.');
-  zeile('         Oben steht je Feld, ob es leer, ausgeblendet oder ein Ankreuzfeld ist.');
+  zeile('  Das ist ein dynamisches XFA-Formular. Der sichtbare Inhalt wird erst vom Acrobat');
+  zeile('  Reader aus den XFA-Daten aufgebaut und steht so nicht im PDF. Kein Betrachter');
+  zeile('  ausser Acrobat zeigt ihn an - ein Vergleich ist erst moeglich, wenn der');
+  zeile('  Zielservice ein normales PDF ausliefert.');
+} else if (felder.length === 0) {
+  zeile('  Es gibt keine Formularfelder. Fehlender Text hat dann eine andere Ursache -');
+  zeile('  bitte die Zeile "Textelemente im Seiteninhalt" je Seite ansehen.');
+} else if (ausFeldern.length === 0) {
+  zeile('  Es gibt Formularfelder, aber keines liefert Text: weder ein Feldwert noch ein');
+  zeile('  gezeichneter Wert. Wenn die Werte auch in einem normalen Betrachter (nicht');
+  zeile('  Acrobat) fehlen, stehen sie schlicht nicht im Dokument - dann liegt es am');
+  zeile('  erzeugenden Dienst und nicht an der Anwendung.');
+  if (hatXfa) {
+    zeile('  Achtung: Das Dokument enthaelt XFA-Daten. Moeglicherweise stehen die Werte nur');
+    zeile('  dort und werden erst vom Acrobat Reader in die Felder uebernommen.');
+  }
+} else {
+  zeile(`  ${ausFeldern.length} Woerter aus Formularfeldern gehen in den Vergleich ein.`);
 }
 zeile();
 

@@ -269,7 +269,8 @@ Damit lässt sich auch ein „flachgedrücktes" Referenzdokument (Werte fest im 
 ein erzeugtes Dokument mit echten Formularfeldern vergleichen – der Text ist auf beiden Seiten
 derselbe.
 
-**Fehlt trotzdem etwas?** Dann zeigt das Diagnosewerkzeug, was die Anwendung im PDF sieht:
+**Fehlt trotzdem etwas?** Dann zeigt das Diagnosewerkzeug, was die Anwendung im PDF sieht.
+Unter Windows genügt es, die PDF-Datei auf **`diagnose.bat`** zu ziehen; auf der Kommandozeile:
 
 ```bat
 node scripts\pdf-diagnose.mjs C:\Pfad\zum\dokument.pdf

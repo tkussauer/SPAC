@@ -88,3 +88,25 @@ irgendetwas zu installieren.
 > Diese Variante nur im vertrauenswürdigen internen Netz verwenden, und in der Windows-Firewall
 > muss Port 3000 freigegeben sein (dafür braucht es meist doch Adminrechte – oft ist es
 > einfacher, das Tool auf einer bestehenden Test-VM zu betreiben).
+
+
+---
+
+# Wenn ein Inhalt im Vergleich fehlt
+
+Manche Inhalte stehen nicht dort, wo eine Textextraktion sie erwartet – etwa Werte in
+Formularfeldern. Was die Anwendung in einem PDF tatsächlich sieht, zeigt die Diagnose:
+
+1. Das betroffene PDF im Tool über **„PDF herunterladen"** speichern (oder die Referenzdatei
+   nehmen).
+2. Diese Datei mit der Maus auf **`diagnose.bat`** ziehen und loslassen.
+3. Es öffnet sich ein Fenster mit dem Ergebnis. Dasselbe steht in **`diagnose-ausgabe.txt`**
+   im Tool-Ordner – diese Datei lässt sich verschicken.
+
+Ohne Drag & Drop geht es auch per Doppelklick auf `diagnose.bat`; dann wird nach dem Pfad
+gefragt.
+
+Die Ausgabe nennt je Seite alle Formularfelder mit **Feldwert** und **gezeichnetem Wert**,
+die Zahl der Textelemente und ob es sich um ein dynamisches **XFA**-Formular handelt. Ein
+solches Formular baut erst der Acrobat Reader aus XML-Daten auf; sein Inhalt steht gar nicht
+als PDF im Dokument und ist für jeden anderen Betrachter unsichtbar.
