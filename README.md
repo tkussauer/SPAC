@@ -27,6 +27,17 @@ Umgesetzte Spezifikation: [`docs/spec.md`](docs/spec.md)
 
 Beenden: Konsolenfenster schließen oder `Strg+C`.
 
+### Ohne Installationsrechte
+
+Node.js muss nicht installiert werden. `start.bat` verwendet bevorzugt eine **mitgelieferte,
+portable Kopie**: Auf [nodejs.org/en/download](https://nodejs.org/en/download) das Paketformat
+*Windows Binary (.zip)* (x64) herunterladen und den Inhalt so in den Unterordner `node\`
+entpacken, dass `node\node.exe` existiert. Mehr ist nicht nötig – weder Adminrechte noch ein
+Eintrag in der Registry. Ist zusätzlich die npm-Registry gesperrt, muss das Paket `node_modules\`
+und ein gebautes `public\` bereits enthalten; `start.bat` überspringt dann Installation und
+Build. Alternativ betreibt **ein** Rechner das Tool und alle anderen nutzen es im Browser
+(`set SPAC_HOST=0.0.0.0`). Details: [`docs/INSTALLATION-Windows.md`](docs/INSTALLATION-Windows.md).
+
 Für eine Verknüpfung auf dem Desktop: Rechtsklick auf `start.bat` → *Senden an* → *Desktop (Verknüpfung erstellen)*.
 
 ### Port oder Host ändern

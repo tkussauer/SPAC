@@ -22,6 +22,19 @@ test('FR8: start.bat existiert und startet Server sowie Browser', async () => {
   assert.match(bat, /where node/, 'Es wird nicht geprüft, ob Node.js installiert ist');
 });
 
+/**
+ * Ohne Installationsrechte lässt sich Node.js als ZIP entpacken statt zu installieren.
+ * Liegt es im Unterordner "node", muss start.bat es von selbst finden.
+ */
+test('FR8: start.bat verwendet ein mitgeliefertes, portables Node.js', async () => {
+  const bat = await readFile(path.join(root, 'start.bat'), 'utf8');
+
+  assert.match(bat, /node\\node\.exe/, 'Portables Node.js im Ordner "node" wird nicht gesucht');
+  assert.match(bat, /set "PATH=%~dp0node;/, 'Der Ordner "node" wird nicht in den PATH gelegt');
+  // Ohne esbuild (reines Laufzeitpaket) muss der Build-Schritt entfallen dürfen.
+  assert.match(bat, /if not exist "public\\main\.js"/, 'Ein fertig gebautes Frontend wird nicht erkannt');
+});
+
 test('FR8: open-browser.cmd öffnet die Anwendung im Standardbrowser', async () => {
   const cmdPath = path.join(root, 'scripts/open-browser.cmd');
   await access(cmdPath, constants.F_OK);
