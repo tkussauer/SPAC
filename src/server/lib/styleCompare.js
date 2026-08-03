@@ -63,6 +63,88 @@ function mergeAdjacent(deviations) {
   return zusammengefasst.map(({ wordIndex, lastWordIndex, ...rest }) => rest);
 }
 
+/** Abstandsarten, die erhoben werden. */
+const ABSTANDSARTEN = [
+  {
+    kind: 'line',
+    label: 'Zeilenabstand',
+    hint: 'Abstand aufeinanderfolgender Zeilen innerhalb eines Textblocks',
+  },
+  { kind: 'char', label: 'Zeichenabstand', hint: 'Sperrung im Textzustand (Tc)' },
+  { kind: 'word', label: 'Wortabstand', hint: 'Zusatz je Leerzeichen im Textzustand (Tw)' },
+];
+
+/** Zählt die Abstandsvarianten eines Dokuments je Art und Wert. */
+export function collectSpacingInventory(pages) {
+  const inventar = new Map();
+
+  for (const page of pages) {
+    for (const { kind } of ABSTANDSARTEN) {
+      for (const [value, count] of page.spacing?.[kind] ?? []) {
+        const key = `${kind}|${value}`;
+        const eintrag = inventar.get(key) ?? { key, kind, value, count: 0, pages: new Set() };
+        eintrag.count += count;
+        eintrag.pages.add(page.pageNumber);
+        inventar.set(key, eintrag);
+      }
+    }
+  }
+
+  return inventar;
+}
+
+/**
+ * Stellt die Abstandsvarianten beider Dokumente gegenüber.
+ *
+ * Zeilenabstand ergibt sich aus den Positionen, Zeichen- und Wortabstand stehen im
+ * Textzustand. Zwei Dokumente können denselben Wortlaut in denselben Schriften zeigen und
+ * trotzdem unterschiedlich gesetzt sein – das fällt sonst nirgends auf.
+ */
+export function compareSpacing(referencePages, generatedPages) {
+  const referenz = collectSpacingInventory(referencePages);
+  const generiert = collectSpacingInventory(generatedPages);
+
+  const beschriftung = (kind) => ABSTANDSARTEN.find((art) => art.kind === kind) ?? { label: kind };
+  const rows = [...new Set([...referenz.keys(), ...generiert.keys()])]
+    .map((key) => {
+      const links = referenz.get(key) ?? null;
+      const rechts = generiert.get(key) ?? null;
+      const eintrag = links ?? rechts;
+
+      let status = 'equal';
+      if (!links) status = 'only-generated';
+      else if (!rechts) status = 'only-reference';
+      else if (links.count !== rechts.count) status = 'count-differs';
+
+      return {
+        key,
+        kind: eintrag.kind,
+        value: eintrag.value,
+        label: beschriftung(eintrag.kind).label,
+        description: `${beschriftung(eintrag.kind).label} ${eintrag.value} pt`,
+        status,
+        reference: links ? { count: links.count, pages: [...links.pages].sort((a, b) => a - b) } : null,
+        generated: rechts ? { count: rechts.count, pages: [...rechts.pages].sort((a, b) => a - b) } : null,
+      };
+    })
+    .sort((a, b) => {
+      const reihenfolge = (row) => ABSTANDSARTEN.findIndex((art) => art.kind === row.kind);
+      return reihenfolge(a) - reihenfolge(b) || b.value - a.value;
+    });
+
+  const nurEinseitig = rows.filter((row) => row.status.startsWith('only-'));
+  return {
+    kinds: ABSTANDSARTEN,
+    rows,
+    identical: nurEinseitig.length === 0,
+    totals: {
+      variants: rows.length,
+      onlyInReference: rows.filter((row) => row.status === 'only-reference').length,
+      onlyInGenerated: rows.filter((row) => row.status === 'only-generated').length,
+    },
+  };
+}
+
 /**
  * @param {Array} referencePages Seiten des Referenz-PDFs (aus extractPages)
  * @param {Array} generatedPages Seiten des generierten PDFs
@@ -149,6 +231,7 @@ export function compareStyles(referencePages, generatedPages, { colorsResolved =
     identical: deviations.length === 0 && inventory.every((row) => row.status === 'equal'),
     colorsResolved,
     inventory,
+    spacing: compareSpacing(referencePages, generatedPages),
     deviations,
     totals: {
       deviations: deviations.length,

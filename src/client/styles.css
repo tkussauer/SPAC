@@ -653,6 +653,48 @@ button.small {
   white-space: nowrap;
 }
 
+/* Getrennte Ansicht: je Dokument eine Tabelle aus Bezeichnung und Vorkommen. */
+.style-table.two-col {
+  grid-template-columns: 1fr auto;
+}
+
+.side-by-side {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+
+@media (max-width: 900px) {
+  .side-by-side {
+    grid-template-columns: 1fr;
+  }
+}
+
+.side-title {
+  margin: 0 0 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Kennzeichnung an einem Eintrag, den es nur in einem der Dokumente gibt. */
+.style-tag {
+  margin-left: 0.5rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  background: #fff0f0;
+  color: var(--diff);
+  white-space: nowrap;
+}
+
+.style-empty {
+  color: var(--muted);
+  font-style: italic;
+}
+
 .style-row-only-reference {
   background: rgba(229, 72, 77, 0.08);
 }

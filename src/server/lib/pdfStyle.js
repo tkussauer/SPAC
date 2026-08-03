@@ -153,6 +153,107 @@ export function collectAnnotationTexts(operatorList, OPS) {
 }
 
 /**
+ * Sammelt die im Seiteninhalt gesetzten **Abstandswerte**.
+ *
+ * Zeichen- und Wortabstand (`Tc`/`Tw`) sind Teil des Textzustands und werden vom Erzeuger
+ * gesetzt, um Text zu sperren oder zu stauchen. Sie sind der Textextraktion nicht anzusehen –
+ * zwei Dokumente können denselben Wortlaut zeigen und trotzdem unterschiedlich gesperrt sein.
+ * Gezählt wird, wie viele Zeichen unter dem jeweiligen Wert gesetzt werden; Werte, unter denen
+ * nichts gezeichnet wird, tauchen gar nicht erst auf.
+ *
+ * @returns {{charSpacing: Map<number, number>, wordSpacing: Map<number, number>}}
+ */
+export function collectSpacingUsage(operatorList, OPS) {
+  const charSpacing = new Map();
+  const wordSpacing = new Map();
+  let aktuell = { char: 0, word: 0 };
+  const stack = [];
+
+  const zaehle = (map, wert, anzahl) => map.set(wert, (map.get(wert) ?? 0) + anzahl);
+
+  for (let index = 0; index < operatorList.fnArray.length; index += 1) {
+    const fn = operatorList.fnArray[index];
+    const args = operatorList.argsArray[index];
+
+    switch (fn) {
+      case OPS.save:
+        stack.push({ ...aktuell });
+        break;
+      case OPS.restore:
+        if (stack.length > 0) aktuell = stack.pop();
+        break;
+      case OPS.setCharSpacing:
+        aktuell = { ...aktuell, char: round(Number(args[0]) || 0) };
+        break;
+      case OPS.setWordSpacing:
+        aktuell = { ...aktuell, word: round(Number(args[0]) || 0) };
+        break;
+      case OPS.showText:
+      case OPS.showSpacedText: {
+        const zeichen = (args[0] ?? []).filter((glyph) => glyph && typeof glyph !== 'number').length;
+        if (zeichen === 0) break;
+        zaehle(charSpacing, aktuell.char, zeichen);
+        zaehle(wordSpacing, aktuell.word, zeichen);
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
+  return { charSpacing, wordSpacing };
+}
+
+/**
+ * Ermittelt die **Zeilenabstände** einer Seite aus den Wortpositionen.
+ *
+ * Der Abstand steht nirgends als Angabe im PDF – er ergibt sich aus den Positionen. Gezählt
+ * wird der Abstand zwischen aufeinanderfolgenden Zeilen, gerundet auf halbe Punkte. Sprünge
+ * über Absätze und Abschnitte hinweg bleiben außen vor: Sie sagen nichts über den Satz aus.
+ *
+ * @returns {Map<number, number>} Zeilenabstand in Punkt -> Häufigkeit
+ */
+export function collectLineSpacing(words) {
+  const zeilen = [];
+  for (const word of [...words].sort((a, b) => a.box.y - b.box.y || a.box.x - b.box.x)) {
+    const toleranz = Math.max(word.box.height * 0.5, 2);
+    const zeile = zeilen.find((kandidat) => Math.abs(kandidat.y - word.box.y) <= toleranz);
+    if (zeile) {
+      zeile.height = Math.max(zeile.height, word.box.height);
+      zeile.x = Math.min(zeile.x, word.box.x);
+      zeile.rechts = Math.max(zeile.rechts, word.box.x + word.box.width);
+    } else {
+      zeilen.push({
+        y: word.box.y,
+        height: word.box.height,
+        x: word.box.x,
+        rechts: word.box.x + word.box.width,
+      });
+    }
+  }
+  zeilen.sort((a, b) => a.y - b.y);
+
+  const abstaende = new Map();
+  for (let index = 1; index < zeilen.length; index += 1) {
+    const oben = zeilen[index - 1];
+    const unten = zeilen[index];
+    const abstand = unten.y - oben.y;
+    const hoehe = Math.max(oben.height, 1);
+
+    // Nur Zeilen, die erkennbar zum selben Textblock gehören, sagen etwas über den Satz aus:
+    if (abstand <= 0 || abstand > hoehe * 3) continue; // Absatz- oder Abschnittswechsel
+    if (Math.abs(unten.x - oben.x) > 2) continue; // andere Spalte oder Einzug
+    if (Math.abs(unten.height - oben.height) > 1) continue; // andere Schriftgröße
+    // Nebeneinanderliegende Blöcke ausschließen: Die Zeilen müssen sich überlappen.
+    if (Math.min(oben.rechts, unten.rechts) - Math.max(oben.x, unten.x) <= 0) continue;
+
+    const gerundet = Math.round(abstand * 2) / 2;
+    abstaende.set(gerundet, (abstaende.get(gerundet) ?? 0) + 1);
+  }
+  return abstaende;
+}
+
+/**
  * Unicode-Blöcke, die Piktogramme enthalten: Pfeile, technische Zeichen, Rahmen,
  * geometrische Formen (Kästchen), Symbole und Dingbats.
  *
@@ -321,6 +422,10 @@ export async function extractItemStyles(page, items, pdfjs) {
   }
 
   const stream = operatorList ? collectTextRenderStates(operatorList, pdfjs.OPS) : [];
+  // Zeichen- und Wortabstand aus dem Textzustand (Tc/Tw).
+  const spacing = operatorList
+    ? collectSpacingUsage(operatorList, pdfjs.OPS)
+    : { charSpacing: new Map(), wordSpacing: new Map() };
   // Text, den Annotationen zeichnen (Formularfelder mit Erscheinungsstrom).
   const annotationTexts = operatorList
     ? collectAnnotationTexts(operatorList, pdfjs.OPS)
@@ -368,6 +473,7 @@ export async function extractItemStyles(page, items, pdfjs) {
     symbolGlyph: verwerfeUnplausibleSymbole(symbolGlyph, items),
     colorsResolved: zuordnungPasst,
     annotationTexts,
+    spacing,
   };
 }
 

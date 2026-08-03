@@ -220,7 +220,9 @@ test('Stil: Die Oberfläche stellt den Vergleich über einen dritten Reiter bere
   assert.match(html, /Font &amp; Stil/, 'Beschriftung des Reiters fehlt');
   assert.match(html, /id="style-panel"[^>]*role="tabpanel"/s, 'Bereich für den Stilvergleich fehlt');
   assert.match(html, /id="style-deviations"/, 'Liste der Abweichungen fehlt');
-  assert.match(html, /id="style-inventory"/, 'Schriftinventar fehlt');
+  // Das Schriftinventar steht je Dokument getrennt nebeneinander.
+  assert.match(html, /id="style-inventory-reference"/, 'Schriftinventar der Referenz fehlt');
+  assert.match(html, /id="style-inventory-generated"/, 'Schriftinventar des generierten PDFs fehlt');
   assert.match(html, /id="style-color-hint"/, 'Hinweis zu nicht ermittelbaren Farben fehlt');
 
   const client = await readFile(path.join(root, 'src/client/main.js'), 'utf8');

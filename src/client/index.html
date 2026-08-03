@@ -344,8 +344,39 @@
 
         <div class="card style-section">
           <h2>Verwendete Schriften</h2>
-          <p class="section-hint">Alle Kombinationen aus Schriftart, -größe, -schnitt und Farbe.</p>
-          <div class="style-table" id="style-inventory"></div>
+          <p class="section-hint">
+            Alle Kombinationen aus Schriftart, -größe, -schnitt und Farbe – je Dokument
+            getrennt. Farbig hervorgehoben ist, was nur in einem der beiden vorkommt.
+          </p>
+          <div class="side-by-side">
+            <div>
+              <h3 class="side-title">Referenz-PDF</h3>
+              <div class="style-table two-col" id="style-inventory-reference"></div>
+            </div>
+            <div>
+              <h3 class="side-title">Generiertes PDF</h3>
+              <div class="style-table two-col" id="style-inventory-generated"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card style-section">
+          <h2>Abstandsvarianten</h2>
+          <p class="section-hint" id="spacing-summary">
+            Zeilenabstand aus den Positionen, Zeichen- und Wortabstand aus dem Textzustand
+            (<code>Tc</code>/<code>Tw</code>). Zwei Dokumente können denselben Wortlaut in
+            denselben Schriften zeigen und trotzdem unterschiedlich gesetzt sein.
+          </p>
+          <div class="side-by-side">
+            <div>
+              <h3 class="side-title">Referenz-PDF</h3>
+              <div class="style-table two-col" id="spacing-reference"></div>
+            </div>
+            <div>
+              <h3 class="side-title">Generiertes PDF</h3>
+              <div class="style-table two-col" id="spacing-generated"></div>
+            </div>
+          </div>
         </div>
       </section>
     </main>

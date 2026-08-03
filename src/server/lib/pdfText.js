@@ -3,7 +3,13 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { AppError } from './errors.js';
 import { looksLikePdf } from './validate.js';
-import { extractItemStyles, isSymbolFont, normalizeFontName, toHexColor } from './pdfStyle.js';
+import {
+  collectLineSpacing,
+  extractItemStyles,
+  isSymbolFont,
+  normalizeFontName,
+  toHexColor,
+} from './pdfStyle.js';
 import { xfaFieldValues, xfaLookupName } from './xfa.js';
 
 const require = createRequire(import.meta.url);
@@ -570,8 +576,17 @@ export async function extractPages(buffer, { label = 'PDF' } = {}) {
       const words = zusammengefuehrt.words;
       hyphenJoins += zusammengefuehrt.joined;
 
+      // Abstandsvarianten der Seite: Zeilenabstand aus den Positionen, Zeichen- und
+      // Wortabstand aus dem Textzustand.
+      const spacing = {
+        line: [...collectLineSpacing(words).entries()],
+        char: [...(styleInfo.spacing?.charSpacing ?? new Map()).entries()],
+        word: [...(styleInfo.spacing?.wordSpacing ?? new Map()).entries()],
+      };
+
       pages.push({
         pageNumber,
+        spacing,
         width: round(viewport.width),
         height: round(viewport.height),
         text: words.map((w) => w.text).join(' '),

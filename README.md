@@ -390,10 +390,28 @@ Verglichen werden nur Wörter, die der Textvergleich als übereinstimmend erkann
 ließe sich nicht unterscheiden, ob sich der Text oder nur die Formatierung geändert hat.
 Aufeinanderfolgende Wörter mit derselben Abweichung werden zu einem Eintrag zusammengefasst.
 
-**Verwendete Schriften** stellt das Inventar beider Dokumente gegenüber: jede Kombination aus
-Schriftart, -größe, -schnitt und Farbe mit der Zahl der Wörter je Dokument und dem Status
-(*in beiden*, *nur in der Referenz*, *nur im generierten*, *unterschiedlich häufig*). So fällt
-sofort auf, wenn eine Schrift im generierten Dokument gar nicht mehr vorkommt.
+**Verwendete Schriften** listet das Inventar **je Dokument getrennt**, nebeneinander: links die
+Referenz, rechts das generierte PDF. Jede Kombination aus Schriftart, -größe, -schnitt und Farbe
+mit der Zahl der Wörter. Was nur in einem der beiden vorkommt oder unterschiedlich oft, bleibt
+farblich hervorgehoben und trägt die Kennzeichnung (*nur in der Referenz*, *nur im generierten*,
+*unterschiedlich häufig*). So ist auf einen Blick zu sehen, welche Schriften ein Dokument
+überhaupt verwendet – und wo die beiden Listen auseinandergehen.
+
+**Abstandsvarianten** beantwortet, was Schriften und Wortlaut nicht verraten: Zwei Dokumente
+können denselben Text in denselben Schriften zeigen und trotzdem unterschiedlich gesetzt sein.
+Erhoben werden drei Arten, ebenfalls je Dokument getrennt:
+
+| Art | Herkunft |
+|---|---|
+| **Zeilenabstand** | aus den Wortpositionen berechnet, auf halbe Punkte gerundet |
+| **Zeichenabstand** | Sperrung aus dem Textzustand (`Tc`) |
+| **Wortabstand** | Zusatz je Leerzeichen aus dem Textzustand (`Tw`) |
+
+Für den Zeilenabstand zählen nur Zeilen, die erkennbar zum selben Textblock gehören: gleicher
+linker Rand, gleiche Schrifthöhe, waagerechte Überlappung und höchstens die dreifache Zeilenhöhe
+Abstand. Ohne diese Bedingungen käme bei einem Formular vor allem Rauschen heraus – jeder Sprung
+zwischen zwei Blöcken wäre ein eigener „Abstand". Zeichen- und Wortabstand werden je gezeichnetem
+Zeichen gezählt; der Grafikzustand wird dabei über `q`/`Q` mitgeführt.
 
 Zur Herkunft der Daten: pdf.js liefert im Textinhalt nur generische Angaben wie „sans-serif".
 Die echten Schriftnamen stehen erst nach dem Auswerten der Operatorliste zur Verfügung, die
@@ -627,6 +645,7 @@ sind keine Binärdateien im Repository nötig und es besteht keine Netzwerkabhä
 | Lesereihenfolge unabhängig von der Zeichenreihenfolge | `test/lesereihenfolge.test.js` |
 | Markdown-Vergleich (Textfassung, Zeilendiff, Reiter) | `test/markdown-compare.test.js` |
 | Font- und Stilvergleich (Schrift, Größe, Schnitt, Farbe) | `test/style-compare.test.js` |
+| Abstandsvarianten (Zeilen-, Zeichen-, Wortabstand) | `test/abstaende.test.js` |
 | FR4 PDF-Response anzeigen/speichern | `test/fr4-pdf-response.test.js` |
 | FR5 seitenweiser Vergleich | `test/fr5-vergleich.test.js` |
 | FR6 farbliche Hervorhebung (nur im generierten Dokument) | `test/fr6-hervorhebung.test.js` |

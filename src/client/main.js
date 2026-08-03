@@ -38,7 +38,11 @@ const dom = {
   styleSummary: el('style-summary'),
   styleColorHint: el('style-color-hint'),
   styleDeviations: el('style-deviations'),
-  styleInventory: el('style-inventory'),
+  styleInventoryReference: el('style-inventory-reference'),
+  styleInventoryGenerated: el('style-inventory-generated'),
+  spacingReference: el('spacing-reference'),
+  spacingGenerated: el('spacing-generated'),
+  spacingSummary: el('spacing-summary'),
   markdownPanel: el('markdown-panel'),
   markdownRows: el('markdown-rows'),
   markdownSummary: el('markdown-summary'),
@@ -541,7 +545,10 @@ function renderStyleComparison(style) {
   state.style = style ?? null;
   if (!style) {
     dom.styleDeviations.replaceChildren();
-    dom.styleInventory.replaceChildren();
+    dom.styleInventoryReference.replaceChildren();
+    dom.styleInventoryGenerated.replaceChildren();
+    dom.spacingReference.replaceChildren();
+    dom.spacingGenerated.replaceChildren();
     dom.styleSummary.textContent = '';
     return;
   }
@@ -559,6 +566,7 @@ function renderStyleComparison(style) {
 
   renderStyleDeviations(style.deviations);
   renderStyleInventory(style.inventory);
+  renderSpacing(style.spacing);
 }
 
 function renderStyleDeviations(deviations) {
@@ -633,40 +641,96 @@ const INVENTORY_STATUS = {
   'count-differs': 'unterschiedlich häufig',
 };
 
-function renderStyleInventory(inventory) {
+/**
+ * Zeichnet eine Tabelle mit zwei Spalten (Bezeichnung, Anzahl) in einen Container.
+ * `zeilen` liefert je Eintrag Beschriftung, Anzahl, Seiten und Status.
+ */
+function renderTwoColumnTable(container, kopfzeile, zeilen) {
   const fragment = document.createDocumentFragment();
-  for (const titel of ['Schrift', 'Status', 'Referenz', 'Generiert']) {
+  for (const [index, titel] of kopfzeile.entries()) {
     const kopf = document.createElement('span');
     kopf.className = 'style-table-head';
-    if (titel === 'Referenz' || titel === 'Generiert') kopf.classList.add('numeric');
+    if (index > 0) kopf.classList.add('numeric');
     kopf.textContent = titel;
     fragment.append(kopf);
   }
 
-  for (const row of inventory ?? []) {
-    const klasse = row.status === 'equal' ? '' : ` style-row-${row.status}`;
+  if (zeilen.length === 0) {
+    const leer = document.createElement('span');
+    leer.className = 'style-empty';
+    leer.textContent = 'Nichts ermittelt.';
+    fragment.append(leer, document.createElement('span'));
+  }
+
+  for (const zeile of zeilen) {
+    const klasse = zeile.status === 'equal' ? '' : ` style-row-${zeile.status}`;
 
     const name = document.createElement('span');
     name.className = `style-name${klasse}`;
-    if (row.style?.color) name.append(colorDot(row.style.color));
-    name.append(document.createTextNode(row.description));
+    if (zeile.color) name.append(colorDot(zeile.color));
+    name.append(document.createTextNode(zeile.label));
+    if (zeile.status !== 'equal') {
+      const hinweis = document.createElement('span');
+      hinweis.className = 'style-tag';
+      hinweis.textContent = INVENTORY_STATUS[zeile.status] ?? zeile.status;
+      name.append(hinweis);
+    }
 
-    const status = document.createElement('span');
-    status.className = `style-status${klasse}`;
-    status.textContent = INVENTORY_STATUS[row.status] ?? row.status;
+    const anzahl = document.createElement('span');
+    anzahl.className = `numeric${klasse}`;
+    anzahl.textContent = zeile.count;
+    if (zeile.pages?.length) anzahl.title = `Seite(n): ${zeile.pages.join(', ')}`;
 
-    fragment.append(name, status, wordCount(row.reference, klasse), wordCount(row.generated, klasse));
+    fragment.append(name, anzahl);
   }
 
-  dom.styleInventory.replaceChildren(fragment);
+  container.replaceChildren(fragment);
 }
 
-function wordCount(seite, klasse) {
-  const zelle = document.createElement('span');
-  zelle.className = `numeric${klasse}`;
-  zelle.textContent = seite ? `${seite.words} Wörter` : '–';
-  if (seite) zelle.title = `Seite(n): ${seite.pages.join(', ')}`;
-  return zelle;
+/**
+ * Verwendete Schriften – je Dokument getrennt. Was nur in einem der beiden vorkommt, bleibt
+ * farblich hervorgehoben, damit der Unterschied auch in der getrennten Ansicht auffällt.
+ */
+function renderStyleInventory(inventory) {
+  const seite = (welche) =>
+    (inventory ?? [])
+      .filter((row) => row[welche])
+      .map((row) => ({
+        label: row.description,
+        color: row.style?.color ?? null,
+        count: `${row[welche].words} Wörter`,
+        pages: row[welche].pages,
+        status: row.status,
+      }));
+
+  renderTwoColumnTable(dom.styleInventoryReference, ['Schrift', 'Vorkommen'], seite('reference'));
+  renderTwoColumnTable(dom.styleInventoryGenerated, ['Schrift', 'Vorkommen'], seite('generated'));
+}
+
+/** Abstandsvarianten – ebenfalls je Dokument getrennt. */
+function renderSpacing(spacing) {
+  const seite = (welche) =>
+    (spacing?.rows ?? [])
+      .filter((row) => row[welche])
+      .map((row) => ({
+        label: row.description,
+        // Zeilenabstände werden je Zeilenpaar gezählt, Zeichen- und Wortabstand je Zeichen.
+        count: row.kind === 'line' ? `${row[welche].count}× ` : `${row[welche].count} Zeichen`,
+        pages: row[welche].pages,
+        status: row.status,
+      }));
+
+  renderTwoColumnTable(dom.spacingReference, ['Abstand', 'Vorkommen'], seite('reference'));
+  renderTwoColumnTable(dom.spacingGenerated, ['Abstand', 'Vorkommen'], seite('generated'));
+
+  if (!dom.spacingSummary) return;
+  const totals = spacing?.totals;
+  dom.spacingSummary.textContent = !totals
+    ? ''
+    : spacing.identical
+      ? `${totals.variants} Abstandsvariante(n) – in beiden Dokumenten dieselben.`
+      : `${totals.variants} Abstandsvariante(n) – ${totals.onlyInReference} nur in der Referenz, ` +
+        `${totals.onlyInGenerated} nur im generierten Dokument.`;
 }
 
 // ------------------------------ Vergleich mit einem anderen Werkzeug (Postman)
