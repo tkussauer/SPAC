@@ -193,6 +193,9 @@ export async function comparePdfs(
   const invisibleWords =
     countWords(referenceRaw, istUnsichtbar) + countWords(generatedRaw, istUnsichtbar);
   const verticalWords = countWords(referenceRaw, istVertikal) + countWords(generatedRaw, istVertikal);
+  const formFieldWords =
+    countWords(referenceRaw, (word) => Boolean(word.formField)) +
+    countWords(generatedRaw, (word) => Boolean(word.formField));
   const singleLetterWords =
     countWords(referenceRaw, istEinzelbuchstabe) + countWords(generatedRaw, istEinzelbuchstabe);
   const headerFooterWords = ignoreHeaderFooter
@@ -253,6 +256,8 @@ export async function comparePdfs(
     symbolGlyphs: { ignored: ignoreSymbols, count: symbolWords },
     invisibleText: { ignored: ignoreInvisible, count: invisibleWords },
     verticalText: { ignored: ignoreVertical, count: verticalWords },
+    // Werte aus ausgefüllten Formularfeldern, die sonst gar nicht im Vergleich auftauchten.
+    formFields: { count: formFieldWords },
     singleLetters: { ignored: ignoreSingleLetters, count: singleLetterWords },
     headerFooter: { ignored: ignoreHeaderFooter, count: headerFooterWords, headerMm, footerMm },
     style,

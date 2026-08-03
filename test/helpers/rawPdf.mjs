@@ -29,6 +29,11 @@ function buildPdf(
   // zu erkennen – genau der Fall, den echte Formulargeneratoren erzeugen.
   objs[9] = '<< /Type /Font /Subtype /Type1 /BaseFont /AAAAAA+F2 /Encoding /WinAnsiEncoding >>';
   const anzahl = mitMarkierungsschrift ? 9 : mitTransparenz ? 8 : mitSymbolschrift ? 7 : zweiSchriften ? 6 : 5;
+  return assemble(objs, anzahl);
+}
+
+/** Setzt die Objekte 1..anzahl zu einem PDF mit gueltiger Querverweistabelle zusammen. */
+function assemble(objs, anzahl) {
   let pdf = '%PDF-1.4\n';
   const offsets = [];
   for (let i = 1; i <= anzahl; i += 1) {
@@ -216,4 +221,59 @@ export async function makeEmbeddedFontPdf(zeilen, schrift = '/usr/share/fonts/tr
     for (const zeile of zeilen) doc.text(zeile);
     doc.end();
   });
+}
+
+/**
+ * PDF mit **Formularfeldern** (AcroForm). Der eingetragene Wert steht im Feld selbst (`/V`)
+ * und wird über einen eigenen Erscheinungsstrom (`/AP`) gezeichnet – er ist **nicht** Teil des
+ * Seiteninhalts. Die normale Textextraktion sieht davon nichts.
+ *
+ * `felder`: [{ label, value, y, mitAppearance? }]
+ * `varianten`:
+ *  - 'ohneAppearance' : Werte ohne Erscheinungsstrom (der Betrachter muss ihn erzeugen –
+ *                       genau das tut sonst nur der Acrobat Reader)
+ *  - 'needAppearances': zusätzlich das Kennzeichen /NeedAppearances im AcroForm
+ *  - 'versteckt'      : Feld mit gesetztem Hidden-Flag
+ */
+export function makeFormFieldPdf(felder, varianten = []) {
+  const ohneAppearance = varianten.includes('ohneAppearance');
+  const versteckt = varianten.includes('versteckt');
+  const objs = [];
+
+  // Beschriftungen stehen im Seiteninhalt, die Werte ausschliesslich in den Feldern.
+  const content = felder
+    .map(({ label, y }) => `BT /F1 12 Tf 50 ${y} Td (${esc(label)}) Tj ET`)
+    .join(' ');
+
+  const ersteFeldNummer = 6;
+  const feldNummern = felder.map((_, i) => ersteFeldNummer + i * 2);
+  objs[1 + 0] =
+    `<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [${feldNummern
+      .map((n) => `${n} 0 R`)
+      .join(' ')}] ${varianten.includes('needAppearances') ? '/NeedAppearances true ' : ''}` +
+    `/DA (/Helv 0 Tf 0 g) /DR << /Font << /Helv 5 0 R >> >> >> >>`;
+  objs[2] = '<< /Type /Pages /Kids [3 0 R] /Count 1 >>';
+  objs[3] =
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 5 0 R >> >> ` +
+    `/Contents 4 0 R /Annots [${feldNummern.map((n) => `${n} 0 R`).join(' ')}] >>`;
+  objs[4] = `<< /Length ${content.length} >>\nstream\n${content}\nendstream`;
+  objs[5] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>';
+
+  felder.forEach(({ value, y }, index) => {
+    const feld = feldNummern[index];
+    const ap = feld + 1;
+    const rect = `[200 ${y - 3} 460 ${y + 13}]`;
+    // Flags: 4 = Print, 2 = Hidden
+    objs[feld] =
+      `<< /Type /Annot /Subtype /Widget /FT /Tx /T (feld${index}) /V (${esc(value)}) ` +
+      `/Rect ${rect} /F ${versteckt ? 2 : 4} /DA (/Helv 10 Tf 0 g) ` +
+      `${ohneAppearance ? '' : `/AP << /N ${ap} 0 R >> `}>>`;
+
+    const strom = `/Tx BMC q BT /Helv 10 Tf 0 g 2 4 Td (${esc(value)}) Tj ET Q EMC`;
+    objs[ap] =
+      `<< /Type /XObject /Subtype /Form /BBox [0 0 260 16] ` +
+      `/Resources << /Font << /Helv 5 0 R >> >> /Length ${strom.length} >>\nstream\n${strom}\nendstream`;
+  });
+
+  return assemble(objs, ersteFeldNummer + felder.length * 2 - 1);
 }

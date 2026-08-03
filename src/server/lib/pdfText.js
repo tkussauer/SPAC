@@ -3,7 +3,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { AppError } from './errors.js';
 import { looksLikePdf } from './validate.js';
-import { extractItemStyles, isSymbolFont } from './pdfStyle.js';
+import { extractItemStyles, isSymbolFont, normalizeFontName, toHexColor } from './pdfStyle.js';
 
 const require = createRequire(import.meta.url);
 
@@ -100,6 +100,92 @@ export function itemToWords(item, pageHeight, style = null, invisible = false, s
       endsAtItemEnd: end === str.length && !item.hasEOL,
     });
   }
+  return words;
+}
+
+/**
+ * Wandelt die **Formularfelder** einer Seite in Wörter um.
+ *
+ * Ausgefüllte Formularfelder (AcroForm) sind kein Bestandteil des Seiteninhalts: Der Wert steht
+ * im Feld selbst (`/V`), gezeichnet wird er über einen eigenen Erscheinungsstrom (`/AP`) oder –
+ * bei `/NeedAppearances` – erst vom Betrachter. Die Textextraktion sieht davon nichts, weshalb
+ * ausgefüllte Felder im Vergleich schlicht fehlten.
+ *
+ * Der Wert wird deshalb direkt aus dem Feld gelesen. Das ist zugleich der robustere Weg als der
+ * Erscheinungsstrom, weil er auch dann funktioniert, wenn gar keiner hinterlegt ist.
+ *
+ * Die Wortpositionen werden aus dem Feldrechteck geschätzt: Startpunkt links im Feld, Breite je
+ * Zeichen aus der Schriftgröße des Feldes. Das genügt für die Hervorhebung; der Textvergleich
+ * selbst arbeitet ohnehin über die Reihenfolge.
+ */
+export function annotationsToWords(annotations, viewport) {
+  const words = [];
+
+  for (const annotation of annotations ?? []) {
+    if (annotation?.subtype !== 'Widget') continue;
+    // Nur textführende Felder: Textfelder (Tx) und Auswahllisten (Ch). Ankreuzfelder (Btn)
+    // tragen keinen Text, sondern einen technischen Wert ("Off", "1") – der hat im
+    // Textvergleich nichts verloren, genau wie ein gezeichnetes Kästchen.
+    if (annotation.fieldType !== 'Tx' && annotation.fieldType !== 'Ch') continue;
+
+    const wert = Array.isArray(annotation.fieldValue)
+      ? annotation.fieldValue.join(' ')
+      : annotation.fieldValue;
+    if (typeof wert !== 'string' || wert.trim() === '') continue;
+
+    const [x1, y1, x2, y2] = annotation.rect ?? [0, 0, 0, 0];
+    const links = Math.min(x1, x2);
+    const feldBreite = Math.abs(x2 - x1);
+    const feldHoehe = Math.abs(y2 - y1);
+    const oben = viewport.height - Math.max(y1, y2);
+
+    const groesse = Number(annotation.defaultAppearanceData?.fontSize) || 0;
+    // Schriftgröße 0 heißt im PDF "automatisch an die Feldhöhe anpassen".
+    const schriftgroesse = groesse > 0 ? groesse : Math.max(feldHoehe * 0.7, 6);
+    const style = {
+      font: normalizeFontName(annotation.defaultAppearanceData?.fontName) || 'Formularfeld',
+      size: Math.round(schriftgroesse * 100) / 100,
+      bold: false,
+      italic: false,
+      color: annotation.defaultAppearanceData?.fontColor
+        ? toHexColor([...annotation.defaultAppearanceData.fontColor])
+        : null,
+    };
+
+    const zeilen = String(wert).split(/\r\n|\r|\n/);
+    zeilen.forEach((zeile, zeilenIndex) => {
+      if (zeile.trim() === '') return;
+      const cumulative = cumulativeWeights(zeile);
+      // Umrechnung Gewicht -> Punkte. Der Faktor ist an Helvetica geeicht: Die Gewichte aus
+      // cumulativeWeights ergeben für einen typischen Satz rund 0,58 × Schriftgröße je Einheit.
+      const einheit = schriftgroesse * 0.58;
+      const zeilenOben = oben + zeilenIndex * schriftgroesse * 1.15;
+
+      const wordRe = /\S+/g;
+      let match;
+      while ((match = wordRe.exec(zeile)) !== null) {
+        const start = match.index;
+        const end = start + match[0].length;
+        const x = links + 2 + cumulative[start] * einheit;
+        words.push({
+          text: match[0],
+          box: {
+            x: round(Math.min(x, links + feldBreite)),
+            y: round(zeilenOben),
+            width: round(
+              Math.max(Math.min((cumulative[end] - cumulative[start]) * einheit, feldBreite), 1)
+            ),
+            height: round(Math.max(Math.min(schriftgroesse * 1.2, feldHoehe || Infinity), 1)),
+          },
+          style,
+          // Ausgeblendete Felder werden nicht gezeichnet – wie unsichtbarer Text im Inhalt.
+          ...(annotation.hidden ? { invisible: true } : {}),
+          formField: true,
+        });
+      }
+    });
+  }
+
   return words;
 }
 
@@ -335,6 +421,14 @@ export async function extractPages(buffer, { label = 'PDF' } = {}) {
       const page = await doc.getPage(pageNumber);
       const viewport = page.getViewport({ scale: 1 });
       const content = await page.getTextContent();
+      // Ausgefüllte Formularfelder stehen nicht im Seiteninhalt und müssen getrennt
+      // eingesammelt werden (siehe annotationsToWords).
+      let annotations = [];
+      try {
+        annotations = await page.getAnnotations({ intent: 'display' });
+      } catch {
+        annotations = [];
+      }
 
       // Schriftart, -größe, -schnitt und Farbe je Textelement (für den Stilvergleich).
       const styleInfo = await extractItemStyles(page, content.items, pdfjs);
@@ -358,8 +452,10 @@ export async function extractPages(buffer, { label = 'PDF' } = {}) {
       // und unsichtbare Steuerzeichen entfernen.
       // Reihenfolge: erst zusammenführen (dafür zählt die Zeichenreihenfolge),
       // danach in Lesereihenfolge bringen.
+      const formularWorte = annotationsToWords(annotations, viewport);
+
       const words = sortInReadingOrder(
-        mergeWordFragments(rohWorte)
+        [...mergeWordFragments(rohWorte), ...formularWorte]
           .map((word) => ({
             ...word,
             text: cleanText(word.text),

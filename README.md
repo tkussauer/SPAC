@@ -230,6 +230,37 @@ Schrift wie der Fließtext steckt und deshalb von keiner der drei Erkennungen er
 Weil sie auch echte Einzelbuchstaben trifft (Gliederungspunkte, Initialen), ist sie
 standardmäßig **aus**.
 
+### Ausgefüllte Formularfelder (AcroForm)
+
+Werte in Formularfeldern sind **kein Bestandteil des Seiteninhalts**. Im PDF steht der Wert im
+Feld selbst (`/V`); gezeichnet wird er über einen eigenen Erscheinungsstrom (`/AP`) am Feld –
+und ist das Kennzeichen `/NeedAppearances` gesetzt, existiert nicht einmal der, dann erzeugt
+ihn erst der Betrachter (klassisch: nur der Acrobat Reader).
+
+Die Textextraktion sieht davon nichts: Sie liest den Seiteninhalt, und dort steht bei einem
+ausgefüllten Feld nur die Beschriftung. Ausgefüllte Felder fehlten damit vollständig im
+Vergleich – und zwar unabhängig davon, ob ein Erscheinungsstrom vorhanden ist:
+
+```
+Im PDF sichtbar : Name  Max Mustermann      (Wert aus dem Formularfeld)
+Extrahiert      : Name                      (Wert fehlt)
+```
+
+Die Anwendung liest die Werte deshalb **direkt aus den Feldern** statt aus dem Seiteninhalt.
+Das ist zugleich der robustere Weg als der Erscheinungsstrom, weil er auch ohne einen solchen
+funktioniert. Berücksichtigt werden Textfelder (`Tx`) und Auswahllisten (`Ch`); Ankreuzfelder
+(`Btn`) tragen keinen Text, sondern einen technischen Wert (`Off`, `1`) und bleiben außen vor –
+wie ein gezeichnetes Kästchen auch. Felder mit gesetztem Hidden-Flag gelten als nicht sichtbar
+und werden wie unsichtbarer Text behandelt.
+
+Die Wortposition für die Hervorhebung wird aus dem Feldrechteck und der Schriftgröße des Feldes
+geschätzt. Das Ergebnis weist unter der Zusammenfassung aus, wie viele Wörter aus Formularfeldern
+eingeflossen sind.
+
+Damit lässt sich auch ein „flachgedrücktes" Referenzdokument (Werte fest im Seiteninhalt) gegen
+ein erzeugtes Dokument mit echten Formularfeldern vergleichen – der Text ist auf beiden Seiten
+derselbe.
+
 ### Zeichenreihenfolge im PDF
 
 pdf.js liefert den Text in der Reihenfolge, in der das PDF ihn **zeichnet** – und die muss
@@ -521,6 +552,7 @@ sind keine Binärdateien im Repository nötig und es besteht keine Netzwerkabhä
 | Abweichend kodierte Sonderzeichen | `test/sonderzeichen.test.js` |
 | Symbolzeichen (Checkboxen) im Textvergleich | `test/symbolzeichen.test.js` |
 | Nicht sichtbare Inhalte | `test/unsichtbare-inhalte.test.js` |
+| Ausgefüllte Formularfelder (AcroForm) | `test/formularfelder.test.js` |
 | Kopf-/Fußzeile ausschließen, Ziel-URL in den Einstellungen | `test/kopf-fusszeile.test.js` |
 | Vertikalen Text (Rahmenvermerke) ausschließen | `test/vertikaler-text.test.js` |
 | Lesereihenfolge unabhängig von der Zeichenreihenfolge | `test/lesereihenfolge.test.js` |

@@ -860,12 +860,21 @@ function renderSummary(result, comparison) {
     ausgenommen.push(`${comparison.singleLetters.count} alleinstehende Einzelbuchstaben`);
   }
 
-  dom.summarySymbols.hidden = ausgenommen.length === 0;
+  const hinweise = [];
   if (ausgenommen.length > 0) {
-    dom.summarySymbols.textContent =
+    hinweise.push(
       `Vom Textvergleich ausgenommen: ${ausgenommen.join(' und ')}. ` +
-      'Abschaltbar unter „Erweiterte Einstellungen".';
+        'Abschaltbar unter „Erweiterte Einstellungen".'
+    );
   }
+  // Formularfelder stehen nicht im Seiteninhalt; dass ihre Werte mitverglichen werden,
+  // ist nicht selbstverständlich und wird deshalb ausgewiesen.
+  if (comparison.formFields?.count > 0) {
+    hinweise.push(`Einbezogen: ${comparison.formFields.count} Wörter aus Formularfeldern.`);
+  }
+
+  dom.summarySymbols.hidden = hinweise.length === 0;
+  dom.summarySymbols.textContent = hinweise.join(' ');
 }
 
 async function loadPdf(url) {
