@@ -246,9 +246,17 @@ Im PDF sichtbar : Name  Max Mustermann      (Wert aus dem Formularfeld)
 Extrahiert      : Name                      (Wert fehlt)
 ```
 
-Die Anwendung liest die Werte deshalb **direkt aus den Feldern** statt aus dem Seiteninhalt.
-Das ist zugleich der robustere Weg als der Erscheinungsstrom, weil er auch ohne einen solchen
-funktioniert. Berücksichtigt werden Textfelder (`Tx`) und Auswahllisten (`Ch`); Ankreuzfelder
+Die Anwendung holt sich diese Werte deshalb aus zwei Quellen – in dieser Reihenfolge:
+
+1. **Was gezeichnet wird.** Der Erscheinungsstrom einer Annotation steht in der Operatorliste;
+   pdf.js klammert ihn mit `beginAnnotation`/`endAnnotation` und nennt dabei das Feld. Manche
+   Erzeuger schreiben den Wert *ausschließlich* dorthin und lassen `/V` leer – dann ist das die
+   einzige Quelle.
+2. **Der Feldwert `/V`.** Er greift, wenn gar kein Erscheinungsstrom hinterlegt ist
+   (`/NeedAppearances`) – klassisch der Fall, in dem nur der Acrobat Reader etwas anzeigt.
+
+Vorrang hat das Gezeichnete, denn verglichen wird, was zu sehen ist. Berücksichtigt werden
+Textfelder (`Tx`) und Auswahllisten (`Ch`); Ankreuzfelder
 (`Btn`) tragen keinen Text, sondern einen technischen Wert (`Off`, `1`) und bleiben außen vor –
 wie ein gezeichnetes Kästchen auch. Felder mit gesetztem Hidden-Flag gelten als nicht sichtbar
 und werden wie unsichtbarer Text behandelt.
@@ -260,6 +268,16 @@ eingeflossen sind.
 Damit lässt sich auch ein „flachgedrücktes" Referenzdokument (Werte fest im Seiteninhalt) gegen
 ein erzeugtes Dokument mit echten Formularfeldern vergleichen – der Text ist auf beiden Seiten
 derselbe.
+
+**Fehlt trotzdem etwas?** Dann zeigt das Diagnosewerkzeug, was die Anwendung im PDF sieht:
+
+```bat
+node scripts\pdf-diagnose.mjs C:\Pfad\zum\dokument.pdf
+```
+
+Es listet je Seite alle Formularfelder mit Feldwert *und* gezeichnetem Wert, dazu die Zahl der
+Textelemente, ob es sich um ein dynamisches XFA-Formular handelt (das nur der Acrobat Reader
+darstellt) und was am Ende in den Vergleich eingeht. Mit `--text` zusätzlich den ganzen Text.
 
 ### Zeichenreihenfolge im PDF
 

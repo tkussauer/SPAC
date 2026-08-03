@@ -100,6 +100,59 @@ export function collectTextRenderStates(operatorList, OPS) {
 }
 
 /**
+ * Liest den Text, der von **Annotationen** gezeichnet wird – je Annotation getrennt.
+ *
+ * Ein ausgefülltes Formularfeld zeichnet seinen Wert über einen eigenen Erscheinungsstrom
+ * (`/AP`), der nicht zum Seiteninhalt gehört. Manche Erzeuger schreiben den Wert **nur** dorthin
+ * und lassen `/V` leer – dann steht er nirgends sonst. Sichtbar gezeichnet wird er trotzdem,
+ * und alles Gezeichnete steht in der Operatorliste.
+ *
+ * pdf.js klammert jede Annotation mit `beginAnnotation`/`endAnnotation` und gibt dabei ihre
+ * Kennung mit an, sodass sich der Text eindeutig zuordnen lässt.
+ *
+ * @returns {Map<string, string>} Kennung der Annotation -> gezeichneter Text
+ */
+export function collectAnnotationTexts(operatorList, OPS) {
+  const texte = new Map();
+  let aktuelleId = null;
+  let gesammelt = '';
+
+  for (let index = 0; index < operatorList.fnArray.length; index += 1) {
+    const fn = operatorList.fnArray[index];
+    const args = operatorList.argsArray[index];
+
+    if (fn === OPS.beginAnnotation) {
+      aktuelleId = args?.[0] ?? null;
+      gesammelt = '';
+      continue;
+    }
+    if (fn === OPS.endAnnotation) {
+      if (aktuelleId !== null && gesammelt.trim() !== '') {
+        texte.set(aktuelleId, `${texte.get(aktuelleId) ?? ''}${gesammelt}`.trim());
+      }
+      aktuelleId = null;
+      gesammelt = '';
+      continue;
+    }
+    if (aktuelleId === null) continue;
+    if (fn !== OPS.showText && fn !== OPS.showSpacedText) continue;
+
+    for (const glyph of args[0] ?? []) {
+      // Zahlen sind Positionssprünge. Ein großer Sprung nach rechts trennt Wörter –
+      // etwa bei Feldern, die jedes Zeichen einzeln setzen.
+      if (typeof glyph === 'number') {
+        if (glyph <= -190) gesammelt += ' ';
+        continue;
+      }
+      if (glyph === null) continue;
+      gesammelt += glyph.unicode ?? '';
+    }
+  }
+
+  return texte;
+}
+
+/**
  * Unicode-Blöcke, die Piktogramme enthalten: Pfeile, technische Zeichen, Rahmen,
  * geometrische Formen (Kästchen), Symbole und Dingbats.
  *
@@ -268,6 +321,10 @@ export async function extractItemStyles(page, items, pdfjs) {
   }
 
   const stream = operatorList ? collectTextRenderStates(operatorList, pdfjs.OPS) : [];
+  // Text, den Annotationen zeichnen (Formularfelder mit Erscheinungsstrom).
+  const annotationTexts = operatorList
+    ? collectAnnotationTexts(operatorList, pdfjs.OPS)
+    : new Map();
   const zustandJeElement = operatorList ? alignStatesToItems(items, stream) : null;
   // Ohne belastbare Zuordnung werden weder Farben behauptet noch Inhalte ausgeblendet.
   const zuordnungPasst = zustandJeElement !== null;
@@ -310,6 +367,7 @@ export async function extractItemStyles(page, items, pdfjs) {
     invisible,
     symbolGlyph: verwerfeUnplausibleSymbole(symbolGlyph, items),
     colorsResolved: zuordnungPasst,
+    annotationTexts,
   };
 }
 

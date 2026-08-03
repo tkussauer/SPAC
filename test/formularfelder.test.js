@@ -219,3 +219,44 @@ test('Formularfelder: Die Oberfläche weist die einbezogenen Werte aus', async (
   assert.match(client, /comparison\.formFields\?\.count/, 'Der Hinweis wird nicht angezeigt');
   assert.match(client, /aus Formularfeldern/);
 });
+
+test('Formularfelder: Wert nur im Erscheinungsstrom, /V leer', async () => {
+  // Manche Erzeuger schreiben den Wert ausschliesslich in den Erscheinungsstrom. Dann ist der
+  // Feldwert keine Quelle mehr – gezeichnet wird er trotzdem, und genau darauf kommt es an.
+  const { pages } = await extractPages(makeFormFieldPdf(FELDER, ['nurAppearance']));
+
+  assert.deepEqual(
+    pages[0].words.filter((w) => w.formField).map((w) => w.text),
+    ['Max', 'Mustermann', '4711', 'EUR']
+  );
+});
+
+test('Formularfelder: Gezeichneter Wert hat Vorrang vor dem Feldwert', async () => {
+  // Weichen Feldwert und Erscheinungsstrom voneinander ab, zaehlt das Sichtbare.
+  const referenz = makeFormFieldPdf([{ label: 'Name', value: 'Max Mustermann', y: 780 }], ['nurAppearance']);
+  const generiert = makeFormFieldPdf([{ label: 'Name', value: 'Max Mustermann', y: 780 }]);
+
+  const ergebnis = await comparePdfs(referenz, generiert);
+  assert.equal(ergebnis.identical, true, 'Beide zeigen denselben Wert an');
+});
+
+test('Formularfelder: Gezeichnete Werte einer Annotation zuordnen', async () => {
+  const { collectAnnotationTexts } = await import('../src/server/lib/pdfStyle.js');
+  const OPS = { beginAnnotation: 80, endAnnotation: 81, showText: 44, showSpacedText: 45 };
+  const glyphen = (text) => [[...text].map((unicode) => ({ unicode }))];
+
+  const liste = {
+    fnArray: [OPS.showText, OPS.beginAnnotation, OPS.showText, OPS.endAnnotation, OPS.showText],
+    argsArray: [glyphen('Seiteninhalt'), ['feld-7'], glyphen('Max Mustermann'), [], glyphen('Rest')],
+  };
+
+  const texte = collectAnnotationTexts(liste, OPS);
+  assert.deepEqual([...texte.entries()], [['feld-7', 'Max Mustermann']]);
+
+  // Grosse Positionssprünge trennen Wörter (Felder, die jedes Zeichen einzeln setzen).
+  const mitSprung = {
+    fnArray: [OPS.beginAnnotation, OPS.showSpacedText, OPS.endAnnotation],
+    argsArray: [['feld-1'], [[{ unicode: 'A' }, -500, { unicode: 'B' }, -20, { unicode: 'C' }]], []],
+  };
+  assert.equal(collectAnnotationTexts(mitSprung, OPS).get('feld-1'), 'A BC');
+});

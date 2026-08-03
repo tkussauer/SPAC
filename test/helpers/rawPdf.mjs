@@ -234,9 +234,12 @@ export async function makeEmbeddedFontPdf(zeilen, schrift = '/usr/share/fonts/tr
  *                       genau das tut sonst nur der Acrobat Reader)
  *  - 'needAppearances': zusätzlich das Kennzeichen /NeedAppearances im AcroForm
  *  - 'versteckt'      : Feld mit gesetztem Hidden-Flag
+ *  - 'nurAppearance'  : Wert steht ausschliesslich im Erscheinungsstrom, `/V` bleibt leer –
+ *                       so arbeiten manche Erzeuger, und dann ist der Feldwert keine Quelle
  */
 export function makeFormFieldPdf(felder, varianten = []) {
   const ohneAppearance = varianten.includes('ohneAppearance');
+  const nurAppearance = varianten.includes('nurAppearance');
   const versteckt = varianten.includes('versteckt');
   const objs = [];
 
@@ -265,7 +268,7 @@ export function makeFormFieldPdf(felder, varianten = []) {
     const rect = `[200 ${y - 3} 460 ${y + 13}]`;
     // Flags: 4 = Print, 2 = Hidden
     objs[feld] =
-      `<< /Type /Annot /Subtype /Widget /FT /Tx /T (feld${index}) /V (${esc(value)}) ` +
+      `<< /Type /Annot /Subtype /Widget /FT /Tx /T (feld${index}) /V (${nurAppearance ? '' : esc(value)}) ` +
       `/Rect ${rect} /F ${versteckt ? 2 : 4} /DA (/Helv 10 Tf 0 g) ` +
       `${ohneAppearance ? '' : `/AP << /N ${ap} 0 R >> `}>>`;
 

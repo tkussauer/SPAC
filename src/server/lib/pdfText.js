@@ -118,7 +118,30 @@ export function itemToWords(item, pageHeight, style = null, invisible = false, s
  * Zeichen aus der Schriftgröße des Feldes. Das genügt für die Hervorhebung; der Textvergleich
  * selbst arbeitet ohnehin über die Reihenfolge.
  */
-export function annotationsToWords(annotations, viewport) {
+/**
+ * Der Text eines Formularfeldes – bevorzugt so, wie er tatsächlich gezeichnet wird.
+ *
+ * Zwei Quellen, die beide vorkommen und sich nicht immer decken:
+ *
+ *  - der **Erscheinungsstrom** (`/AP`), also das, was am Bildschirm steht. Manche Erzeuger
+ *    schreiben den Wert ausschließlich dorthin und lassen `/V` leer.
+ *  - der **Feldwert** (`/V`). Er ist die einzige Quelle, wenn gar kein Erscheinungsstrom
+ *    hinterlegt ist (`/NeedAppearances`) – klassisch der Fall, in dem nur der Acrobat Reader
+ *    etwas anzeigt.
+ *
+ * Vorrang hat das Gezeichnete: Verglichen wird, was zu sehen ist.
+ */
+function feldwert(annotation, annotationTexts) {
+  const gezeichnet = annotationTexts.get(annotation.id);
+  if (typeof gezeichnet === 'string' && gezeichnet.trim() !== '') return gezeichnet;
+
+  const wert = Array.isArray(annotation.fieldValue)
+    ? annotation.fieldValue.join(' ')
+    : annotation.fieldValue;
+  return typeof wert === 'string' && wert.trim() !== '' ? wert : null;
+}
+
+export function annotationsToWords(annotations, viewport, annotationTexts = new Map()) {
   const words = [];
 
   for (const annotation of annotations ?? []) {
@@ -128,10 +151,8 @@ export function annotationsToWords(annotations, viewport) {
     // Textvergleich nichts verloren, genau wie ein gezeichnetes Kästchen.
     if (annotation.fieldType !== 'Tx' && annotation.fieldType !== 'Ch') continue;
 
-    const wert = Array.isArray(annotation.fieldValue)
-      ? annotation.fieldValue.join(' ')
-      : annotation.fieldValue;
-    if (typeof wert !== 'string' || wert.trim() === '') continue;
+    const wert = feldwert(annotation, annotationTexts);
+    if (wert === null) continue;
 
     const [x1, y1, x2, y2] = annotation.rect ?? [0, 0, 0, 0];
     const links = Math.min(x1, x2);
@@ -452,7 +473,7 @@ export async function extractPages(buffer, { label = 'PDF' } = {}) {
       // und unsichtbare Steuerzeichen entfernen.
       // Reihenfolge: erst zusammenführen (dafür zählt die Zeichenreihenfolge),
       // danach in Lesereihenfolge bringen.
-      const formularWorte = annotationsToWords(annotations, viewport);
+      const formularWorte = annotationsToWords(annotations, viewport, styleInfo.annotationTexts);
 
       const words = sortInReadingOrder(
         [...mergeWordFragments(rohWorte), ...formularWorte]
