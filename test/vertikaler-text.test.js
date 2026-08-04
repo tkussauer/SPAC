@@ -26,14 +26,23 @@ test('Vertikal: Gedrehter Text wird als vertikal erkannt, waagerechter nicht', a
   assert.ok(horizontal.includes('Waagerechte'), 'Waagerechter Text darf nicht vertikal sein');
 });
 
-test('Vertikal: Standardmäßig zählt vertikaler Text mit', async () => {
+test('Vertikal: Abgeschaltet zählt vertikaler Text mit', async () => {
+  const ref = makeVerticalMarginPdf(['Rechnung 4711'], ['Aktenzeichen 2024']);
+  const gen = makeVerticalMarginPdf(['Rechnung 4711'], ['Aktenzeichen 2025']);
+
+  const ergebnis = await comparePdfs(ref, gen, { ignoreVertical: false });
+  assert.equal(ergebnis.identical, false, 'Ohne Ausschluss muss der Randvermerk auffallen');
+  assert.equal(ergebnis.verticalText.ignored, false);
+  assert.ok(ergebnis.verticalText.count > 0);
+});
+
+test('Vertikal: Standardmäßig bleibt der Randvermerk außen vor', async () => {
   const ref = makeVerticalMarginPdf(['Rechnung 4711'], ['Aktenzeichen 2024']);
   const gen = makeVerticalMarginPdf(['Rechnung 4711'], ['Aktenzeichen 2025']);
 
   const ergebnis = await comparePdfs(ref, gen);
-  assert.equal(ergebnis.identical, false, 'Ohne Ausschluss muss der Randvermerk auffallen');
-  assert.equal(ergebnis.verticalText.ignored, false);
-  assert.ok(ergebnis.verticalText.count > 0);
+  assert.equal(ergebnis.identical, true, 'Seitliche Vermerke gehören nicht zum Inhalt');
+  assert.equal(ergebnis.verticalText.ignored, true);
 });
 
 test('Vertikal: Mit Ausschluss gelten die Dokumente als identisch', async () => {
@@ -98,13 +107,13 @@ test('Vertikal: Die Einstellung wirkt über die API', async () => {
       }),
     });
 
-    const ohne = await (await fetch(`${app.url}/api/generate`, anfrage(undefined))).json();
-    assert.equal(ohne.comparison.identical, false, 'Standardmäßig zählt der Randvermerk mit');
-    assert.equal(ohne.comparison.verticalText.ignored, false);
+    const standard = await (await fetch(`${app.url}/api/generate`, anfrage(undefined))).json();
+    assert.equal(standard.comparison.identical, true, 'Standardmäßig bleibt der Vermerk außen vor');
+    assert.equal(standard.comparison.verticalText.ignored, true);
 
-    const mit = await (await fetch(`${app.url}/api/generate`, anfrage(true))).json();
-    assert.equal(mit.comparison.identical, true);
-    assert.equal(mit.comparison.verticalText.ignored, true);
+    const aus = await (await fetch(`${app.url}/api/generate`, anfrage(false))).json();
+    assert.equal(aus.comparison.identical, false);
+    assert.equal(aus.comparison.verticalText.ignored, false);
   } finally {
     await app.close();
     await target.close();
@@ -117,7 +126,7 @@ test('Vertikal: Die Oberfläche bietet den Schalter', async () => {
 
   assert.ok(schalter, 'Schalter für vertikalen Text fehlt');
   assert.match(schalter, /type="checkbox"/);
-  assert.ok(!/checked/.test(schalter), 'Vertikaler Text soll standardmäßig mitverglichen werden');
+  assert.match(schalter, /checked/, 'Vertikaler Text soll standardmäßig ausgeschlossen werden');
   assert.match(html, /Vertikalen Text .* ausschließen/);
 
   const client = await readFile(path.join(root, 'src/client/main.js'), 'utf8');

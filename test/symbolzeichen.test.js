@@ -206,7 +206,12 @@ test('Symbolzeichen: Abschaltbar – dann werden die Kästchen wieder gemeldet',
   const referenz = makeCheckboxPdf(OPTIONEN, { mitKaestchen: true });
   const generiert = makeCheckboxPdf(OPTIONEN, { mitKaestchen: false });
 
-  const ergebnis = await comparePdfs(referenz, generiert, { ignoreSymbols: false });
+  // Die Einzelbuchstaben-Regel würde die Kästchen ohnehin entfernen – hier geht es
+  // ausschließlich um die Symbolerkennung, deshalb ist sie mit abgeschaltet.
+  const ergebnis = await comparePdfs(referenz, generiert, {
+    ignoreSymbols: false,
+    ignoreSingleLetters: false,
+  });
 
   assert.equal(ergebnis.identical, false);
   assert.equal(ergebnis.pages[0].counts.removedWords, 5, 'Die fünf Kästchen fehlen im generierten Dokument');
@@ -277,7 +282,7 @@ test('Symbolzeichen: Die Einstellung wirkt über die API', async () => {
         templatePath: SAMPLE_TEMPLATE_PATH,
         xmlContent: SAMPLE_XML,
         referenceId,
-        ...(ignoreSymbols === undefined ? {} : { ignoreSymbols }),
+        ...(ignoreSymbols === undefined ? {} : { ignoreSymbols, ignoreSingleLetters: false }),
       }),
     });
 
@@ -358,7 +363,7 @@ test('Markierungsschrift: Abgeschaltet werden die Kästchen wieder gemeldet', as
   const ergebnis = await comparePdfs(
     makeMarkerFontPdf(OPTIONEN, { mitMarken: true }),
     makeMarkerFontPdf(OPTIONEN, { mitMarken: false }),
-    { ignoreSymbols: false }
+    { ignoreSymbols: false, ignoreSingleLetters: false }
   );
 
   assert.equal(ergebnis.identical, false);
@@ -418,14 +423,14 @@ test('Markierungsschrift: Rückfallebene – alleinstehende Einzelbuchstaben ign
   const referenz = makeSimplePdf(['A einmalig A gelegentlich']);
   const generiert = makeSimplePdf(['einmalig gelegentlich']);
 
-  const standard = await comparePdfs(referenz, generiert);
-  assert.equal(standard.identical, false, 'Ohne die Option bleibt es eine Abweichung');
-  assert.deepEqual(standard.singleLetters, { ignored: false, count: 2 });
+  const aus = await comparePdfs(referenz, generiert, { ignoreSingleLetters: false });
+  assert.equal(aus.identical, false, 'Abgeschaltet bleibt es eine Abweichung');
+  assert.deepEqual(aus.singleLetters, { ignored: false, count: 2 });
 
-  const mitOption = await comparePdfs(referenz, generiert, { ignoreSingleLetters: true });
-  assert.equal(mitOption.identical, true);
-  assert.equal(mitOption.markdown.identical, true);
-  assert.deepEqual(mitOption.singleLetters, { ignored: true, count: 2 });
+  const standard = await comparePdfs(referenz, generiert);
+  assert.equal(standard.identical, true, 'Standardmäßig greift die Rückfallebene');
+  assert.equal(standard.markdown.identical, true);
+  assert.deepEqual(standard.singleLetters, { ignored: true, count: 2 });
 });
 
 test('Markierungsschrift: Die Oberfläche bietet die Rückfallebene', async () => {
@@ -434,7 +439,7 @@ test('Markierungsschrift: Die Oberfläche bietet die Rückfallebene', async () =
 
   assert.ok(schalter, 'Schalter für Einzelbuchstaben fehlt');
   assert.match(schalter, /type="checkbox"/);
-  assert.ok(!/checked/.test(schalter), 'Die Rückfallebene muss standardmäßig aus sein');
+  assert.match(schalter, /checked/, 'Die Rückfallebene soll standardmäßig greifen');
   assert.match(html, /Alleinstehende Einzelbuchstaben ignorieren/);
 
   const client = await readFile(path.join(root, 'src/client/main.js'), 'utf8');

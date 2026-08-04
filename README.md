@@ -87,6 +87,28 @@ umgerechnet). Verschiebt sich der Text durch die fehlende Stelle, kann die gestr
 Markierung daher über nachfolgendem Inhalt liegen – der Tooltip nennt den konkret fehlenden
 Text.
 
+### Voreinstellungen im Überblick
+
+Alle Toleranzen stehen unter „Erweiterte Einstellungen" und lassen sich einzeln abschalten.
+Standardmäßig gilt:
+
+| Option | Vorgabe | Warum |
+|---|---|---|
+| Nicht sichtbare Inhalte ignorieren | **an** | Was am Bildschirm nicht zu sehen ist, gehört nicht in den Vergleich |
+| Symbolzeichen ignorieren | **an** | Kästchen und Haken kommen im extrahierten Text als zufällige Buchstaben an |
+| Alleinstehende Einzelbuchstaben ignorieren | **an** | In Formularen fast immer Kästchen, die eine Erkennung durchgelassen hat |
+| Vertikalen Text ausschließen | **an** | Seitliche Vermerke und Stempel gehören selten zum geprüften Inhalt |
+| Text auf einer Nachbarseite | **an** | Ein verschobener Umbruch ist keine inhaltliche Abweichung |
+| Kopf- und Fußzeile ausschließen | **aus** | Datum und Seitenzahl unterscheiden sich zwangsläufig – aber der Randbereich kann auch echten Inhalt enthalten |
+| Wörter vom Vergleich ausschließen | leer | Dokumentabhängig, muss selbst gefüllt werden |
+
+Nicht abschaltbar sind die Normalisierungen, die keine Entscheidung erfordern: abweichend
+kodierte Sonderzeichen, am Zeilenende getrennte Wörter und die Lesereihenfolge.
+
+Die **Ausschlussliste greift zuerst**, noch vor allen automatischen Regeln. Sonst könnte eine
+davon bereits ein Wort entfernt haben und eine mehrwortige Folge wie `Daten von S` passte nicht
+mehr – das `S` wäre schon als Einzelbuchstabe verschwunden.
+
 ### Abweichend kodierte Sonderzeichen
 
 PDFs kodieren Sonderzeichen nicht immer als ein Textelement. Wird ein Umlaut z. B. aus einer
@@ -207,8 +229,8 @@ vom Vergleich aus – unabhängig von seiner Position. Der Ausschluss wirkt auf 
 Ansicht **und** den Markdown-Vergleich; das Ergebnis weist aus, wie viele Stellen betroffen
 waren.
 
-Standardmäßig ist die Option **aus** – vertikaler Text wird also normal mitverglichen, bis sie
-bewusst eingeschaltet wird. Waagerechter Fließtext bleibt in jedem Fall unberührt.
+Standardmäßig ist die Option **an**: Seitliche Vermerke gehören selten zum geprüften Inhalt.
+Abschalten, wenn sie es doch tun. Waagerechter Fließtext bleibt in jedem Fall unberührt.
 
 ### Checkboxen und andere Symbolzeichen
 
@@ -258,8 +280,9 @@ Als **Rückfallebene** gibt es unter „Erweiterte Einstellungen" zusätzlich *A
 Einzelbuchstaben ignorieren*. Die Option nimmt jeden allein stehenden Einzelbuchstaben vom
 Vergleich aus – unabhängig von Schrift und Glyph. Sie hilft, wenn ein Kästchen in derselben
 Schrift wie der Fließtext steckt und deshalb von keiner der drei Erkennungen erfasst wird.
-Weil sie auch echte Einzelbuchstaben trifft (Gliederungspunkte, Initialen), ist sie
-standardmäßig **aus**.
+Standardmäßig ist sie **an**: In Formularen sind alleinstehende Einzelbuchstaben fast immer
+Kästchen. Sie trifft allerdings auch echte (Gliederungspunkte, Initialen) – stehen solche im
+geprüften Inhalt, gehört die Option abgeschaltet.
 
 ### Text auf einer Nachbarseite
 

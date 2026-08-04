@@ -296,8 +296,8 @@ export function createApp({
             ignoreHeaderFooter: ignoreHeaderFooter === true,
             ...(Number.isFinite(headerMm) ? { headerMm } : {}),
             ...(Number.isFinite(footerMm) ? { footerMm } : {}),
-            ignoreVertical: ignoreVertical === true,
-            ignoreSingleLetters: ignoreSingleLetters === true,
+            ignoreVertical: ignoreVertical !== false,
+            ignoreSingleLetters: ignoreSingleLetters !== false,
             ignoreWords: typeof ignoreWords === 'string' ? ignoreWords : '',
             ignorePageShift: ignorePageShift !== false,
           });

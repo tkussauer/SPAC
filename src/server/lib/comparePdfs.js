@@ -218,8 +218,8 @@ export async function comparePdfs(
     ignoreHeaderFooter = false,
     headerMm = 25,
     footerMm = 25,
-    ignoreVertical = false,
-    ignoreSingleLetters = false,
+    ignoreVertical = true,
+    ignoreSingleLetters = true,
     ignoreWords = '',
     ignorePageShift = true,
     maxPageShift = 1,
@@ -260,13 +260,17 @@ export async function comparePdfs(
     (ignoreHeaderFooter && istKopfFuss(word, page));
 
   // Frei gewählte Wörter und Wortfolgen (z. B. Ebenenkennungen des Erzeugers).
+  //
+  // Die Liste wird **zuerst** angewandt, noch vor den automatischen Filtern: Sie ist auf den
+  // Text gemünzt, der im Dokument steht. Liefe sie danach, könnte eine automatische Regel
+  // schon Wörter entfernt haben und eine mehrwortige Folge ("Daten von S") passte nicht mehr.
   const ignorierte = parseIgnoreWords(
     Array.isArray(ignoreWords) ? ignoreWords.join(',') : ignoreWords
   );
-  const referenzGefiltert = withoutPhrases(withoutWords(referenceRaw, auszuschliessen), ignorierte);
-  const generiertGefiltert = withoutPhrases(withoutWords(generatedRaw, auszuschliessen), ignorierte);
-  const reference = referenzGefiltert.dokument;
-  const generated = generiertGefiltert.dokument;
+  const referenzGefiltert = withoutPhrases(referenceRaw, ignorierte);
+  const generiertGefiltert = withoutPhrases(generatedRaw, ignorierte);
+  const reference = withoutWords(referenzGefiltert.dokument, auszuschliessen);
+  const generated = withoutWords(generiertGefiltert.dokument, auszuschliessen);
   const symbolWords = countWords(referenceRaw, istSymbol) + countWords(generatedRaw, istSymbol);
   const invisibleWords =
     countWords(referenceRaw, istUnsichtbar) + countWords(generatedRaw, istUnsichtbar);

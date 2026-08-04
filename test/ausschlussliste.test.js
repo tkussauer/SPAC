@@ -165,3 +165,15 @@ test('Ausschluss: Die Oberfläche bietet das Feld', async () => {
   assert.match(client, /saved\.ignoreWords/, 'Die Einstellung wird nicht gespeichert');
   assert.match(client, /comparison\.ignoredWords\?\.count/, 'Der Hinweis wird nicht angezeigt');
 });
+
+test('Ausschluss: Die Liste greift vor den automatischen Filtern', async () => {
+  // "S" ist ein alleinstehender Einzelbuchstabe und würde von der automatischen Regel
+  // entfernt. Liefe die Liste danach, passte die Folge "Daten von S" nicht mehr.
+  const referenz = makeSimplePdf(['Daten von S Betrag 100 EUR']);
+  const generiert = makeSimplePdf(['Betrag 100 EUR']);
+
+  const ergebnis = await comparePdfs(referenz, generiert, { ignoreWords: 'Daten von S' });
+
+  assert.equal(ergebnis.identical, true);
+  assert.equal(ergebnis.ignoredWords.count, 3, 'Die ganze Folge muss erfasst werden');
+});
