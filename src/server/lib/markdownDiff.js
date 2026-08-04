@@ -1,4 +1,9 @@
-import { diffTokens, foldSegmentationDifferences, normalizeIgnoringSpaces } from './diff.js';
+import {
+  diffTokens,
+  foldSegmentationDifferences,
+  normalizeIgnoringSpaces,
+  normalizeToken,
+} from './diff.js';
 
 /**
  * Zeilenweiser Vergleich zweier Markdown-Fassungen, aufbereitet für eine
@@ -51,14 +56,74 @@ export function segmentLine(referenceLine, generatedLine) {
   return { reference, generated };
 }
 
+/** Seitenüberschrift der Markdown-Fassung. */
+const SEITENUEBERSCHRIFT = /^##\s+Seite\s+(\d+)/;
+
+/** Ordnet jeder Zeile die Seite zu, auf der sie steht. */
+function seitenJeZeile(lines) {
+  let aktuell = 0;
+  return lines.map((line) => {
+    const treffer = SEITENUEBERSCHRIFT.exec(line ?? '');
+    if (treffer) aktuell = Number(treffer[1]);
+    return aktuell;
+  });
+}
+
+/**
+ * Erkennt Zeilen, die im anderen Dokument unverändert auf einer **Nachbarseite** stehen.
+ *
+ * Ein leichter Versatz im Satz schiebt Text über die Seitengrenze. Zeilenweise verglichen
+ * erscheint dieselbe Zeile dann zweimal – einmal als fehlend, einmal als zusätzlich. Beide
+ * werden zu "verschoben" umgewidmet, damit die Textfassung dasselbe sagt wie die Seitenansicht.
+ */
+function markiereVerschobeneZeilen(rows, referenceLines, generatedLines, maxPages) {
+  const referenzSeiten = seitenJeZeile(referenceLines);
+  const generiertSeiten = seitenJeZeile(generatedLines);
+
+  // Zusätzliche Zeilen nach ihrem Text ablegen; jede kann nur einmal zugeordnet werden.
+  const nachText = new Map();
+  rows.forEach((row, index) => {
+    if (row.type !== 'added') return;
+    const key = normalizeToken(row.generated ?? '');
+    if (key === '') return;
+    if (!nachText.has(key)) nachText.set(key, []);
+    nachText.get(key).push(index);
+  });
+
+  let count = 0;
+  for (const row of rows) {
+    if (row.type !== 'removed') continue;
+    const key = normalizeToken(row.reference ?? '');
+    const kandidaten = nachText.get(key);
+    if (!kandidaten || kandidaten.length === 0) continue;
+
+    const referenzSeite = referenzSeiten[row.referenceLine - 1] ?? 0;
+    const treffer = kandidaten.findIndex(
+      (index) =>
+        Math.abs((generiertSeiten[rows[index].generatedLine - 1] ?? 0) - referenzSeite) <= maxPages
+    );
+    if (treffer === -1) continue;
+
+    const partner = rows[kandidaten[treffer]];
+    kandidaten.splice(treffer, 1);
+    row.type = 'moved';
+    partner.type = 'moved';
+    count += 2;
+  }
+
+  return count;
+}
+
 /**
  * Baut die Zeilen der Gegenüberstellung.
  * @param {string[]} referenceLines
  * @param {string[]} generatedLines
- * @returns {Array<{type:'equal'|'changed'|'removed'|'added', reference:string|null, generated:string|null,
- *                  referenceLine:number|null, generatedLine:number|null, segments?:object}>}
+ * @param {{ignorePageShift?:boolean, maxPageShift?:number}} options
+ * @returns {Array<{type:'equal'|'changed'|'removed'|'added'|'moved', reference:string|null,
+ *                  generated:string|null, referenceLine:number|null, generatedLine:number|null,
+ *                  segments?:object}>}
  */
-export function buildLineDiff(referenceLines, generatedLines) {
+export function buildLineDiff(referenceLines, generatedLines, { ignorePageShift = true, maxPageShift = 1 } = {}) {
   const ops = diffTokens(referenceLines, generatedLines);
   const rows = [];
 
@@ -137,15 +202,21 @@ export function buildLineDiff(referenceLines, generatedLines) {
     });
   }
 
-  const changed = rows.filter((row) => row.type !== 'equal');
+  const moved = ignorePageShift
+    ? markiereVerschobeneZeilen(rows, referenceLines, generatedLines, Math.max(0, Number(maxPageShift) || 0))
+    : 0;
+
+  // Verschobene Zeilen sind inhaltlich gleich und zählen deshalb nicht als Abweichung.
+  const abweichend = rows.filter((row) => row.type !== 'equal' && row.type !== 'moved');
   return {
     rows,
     totals: {
-      equal: rows.length - changed.length,
+      equal: rows.length - abweichend.length - moved,
       changed: rows.filter((row) => row.type === 'changed').length,
       removed: rows.filter((row) => row.type === 'removed').length,
       added: rows.filter((row) => row.type === 'added').length,
+      moved,
     },
-    identical: changed.length === 0,
+    identical: abweichend.length === 0,
   };
 }

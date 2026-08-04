@@ -211,6 +211,7 @@ export function createApp({
         ignoreVertical,
         ignoreSingleLetters,
         ignoreWords,
+        ignorePageShift,
       } = req.body ?? {};
 
       const url = validateTargetUrl(targetUrl);
@@ -298,6 +299,7 @@ export function createApp({
             ignoreVertical: ignoreVertical === true,
             ignoreSingleLetters: ignoreSingleLetters === true,
             ignoreWords: typeof ignoreWords === 'string' ? ignoreWords : '',
+            ignorePageShift: ignorePageShift !== false,
           });
         } catch (err) {
           comparisonError = isAppError(err)

@@ -30,6 +30,7 @@ const dom = {
   ignoreVertical: el('ignore-vertical'),
   ignoreSingleLetters: el('ignore-single-letters'),
   ignoreWords: el('ignore-words'),
+  ignorePageShift: el('ignore-page-shift'),
   advanced: el('advanced'),
   tabs: el('tabs'),
   tabPdf: el('tab-pdf'),
@@ -129,6 +130,9 @@ function loadSettings() {
       dom.ignoreSingleLetters.checked = saved.ignoreSingleLetters;
     }
     if (typeof saved.ignoreWords === 'string') dom.ignoreWords.value = saved.ignoreWords;
+    if (typeof saved.ignorePageShift === 'boolean') {
+      dom.ignorePageShift.checked = saved.ignorePageShift;
+    }
     // Die erweiterten Einstellungen bleiben zugeklappt, bis sie jemand selbst aufklappt.
     if (saved.advancedOpen === true) dom.advanced?.setAttribute('open', '');
     if (typeof saved.showHighlights === 'boolean') dom.toggleHighlights.checked = saved.showHighlights;
@@ -157,6 +161,7 @@ function saveSettings() {
         ignoreVertical: dom.ignoreVertical.checked,
         ignoreSingleLetters: dom.ignoreSingleLetters.checked,
         ignoreWords: dom.ignoreWords.value,
+        ignorePageShift: dom.ignorePageShift.checked,
         advancedOpen: dom.advanced?.hasAttribute('open') ?? false,
         showHighlights: dom.toggleHighlights.checked,
         onlyDiffLines: dom.toggleOnlyDiff.checked,
@@ -311,6 +316,7 @@ async function runComparison({ reason = 'generate' } = {}) {
         ignoreVertical: dom.ignoreVertical.checked,
         ignoreSingleLetters: dom.ignoreSingleLetters.checked,
         ignoreWords: dom.ignoreWords.value,
+        ignorePageShift: dom.ignorePageShift.checked,
       }),
     });
 
@@ -453,10 +459,13 @@ function renderMarkdownDiff(markdown) {
     return;
   }
 
-  dom.markdownSummary.textContent = markdown.identical
-    ? 'Die Textfassungen stimmen überein.'
-    : `${markdown.totals.changed} geänderte, ${markdown.totals.removed} nur in der Referenz, ` +
-      `${markdown.totals.added} nur im generierten Dokument`;
+  const verschoben =
+    markdown.totals.moved > 0 ? ` (${markdown.totals.moved} verschobene Zeilen)` : '';
+  dom.markdownSummary.textContent =
+    (markdown.identical
+      ? 'Die Textfassungen stimmen überein.'
+      : `${markdown.totals.changed} geänderte, ${markdown.totals.removed} nur in der Referenz, ` +
+        `${markdown.totals.added} nur im generierten Dokument`) + verschoben;
 
   dom.markdownDownload.href = URL.createObjectURL(new Blob([markdown.generated], { type: 'text/markdown' }));
 
@@ -491,6 +500,8 @@ const ROW_BACKGROUND = {
   removed: { reference: 'md-removed-bg', generated: null },
   added: { reference: null, generated: 'md-added-bg' },
   changed: { reference: 'md-changed-bg', generated: 'md-changed-bg' },
+  // Inhaltlich gleich, nur auf einer anderen Seite – keine Abweichung, aber sichtbar gemacht.
+  moved: { reference: 'md-moved-bg', generated: 'md-moved-bg' },
   equal: { reference: null, generated: null },
 };
 
@@ -917,6 +928,9 @@ function renderSummary(result, comparison) {
   if (comparison.singleLetters?.ignored && comparison.singleLetters.count > 0) {
     ausgenommen.push(`${comparison.singleLetters.count} alleinstehende Einzelbuchstaben`);
   }
+  if (comparison.pageShift?.ignored && comparison.pageShift.count > 0) {
+    ausgenommen.push(`${comparison.pageShift.count} Wörter, die nur auf einer Nachbarseite stehen`);
+  }
   if (comparison.ignoredWords?.count > 0) {
     ausgenommen.push(
       `${comparison.ignoredWords.count} Wörter aus der Ausschlussliste ` +
@@ -1233,6 +1247,7 @@ function wireUp() {
   dom.ignoreVertical.addEventListener('change', saveSettings);
   dom.ignoreSingleLetters.addEventListener('change', saveSettings);
   dom.ignoreWords.addEventListener('input', saveSettings);
+  dom.ignorePageShift.addEventListener('change', saveSettings);
   dom.advanced?.addEventListener('toggle', saveSettings);
   applyHeaderFooterState();
 

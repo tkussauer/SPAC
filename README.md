@@ -261,6 +261,38 @@ Schrift wie der Fließtext steckt und deshalb von keiner der drei Erkennungen er
 Weil sie auch echte Einzelbuchstaben trifft (Gliederungspunkte, Initialen), ist sie
 standardmäßig **aus**.
 
+### Text auf einer Nachbarseite
+
+Verglichen wird Seite gegen Seite: Seite 1 gegen Seite 1, Seite 2 gegen Seite 2. Schiebt sich
+der Satz leicht – ein Absatz passt nicht mehr auf die Seite –, rutscht Text über die
+Seitengrenze. Derselbe Inhalt wird dann **zweimal** gemeldet: auf der einen Seite als fehlend,
+auf der nächsten als zusätzlich.
+
+```
+Referenz    Seite 1: … Kunde Mustermann Berlin      <- gilt als fehlend
+            Seite 2: Zahlbar bis 31.12.2026
+Generiert   Seite 1: …
+            Seite 2: Kunde Mustermann Berlin        <- gilt als zusätzlich
+                     Zahlbar bis 31.12.2026
+```
+
+Die Anwendung gleicht das nachträglich ab: Wörter, die im anderen Dokument unverändert auf
+einer **Nachbarseite** stehen, gelten als verschoben und nicht als Abweichung. Größere Sprünge
+bleiben eine Abweichung – wandert Text zwei Seiten weit, ist das keine Umbruchverschiebung mehr.
+Abschaltbar unter „Erweiterte Einstellungen"; die zulässige Entfernung liegt bei einer Seite
+(über die API mit `maxPageShift` einstellbar).
+
+Der **Markdown-Vergleich** kennt dieselbe Regel: Eine Zeile, die im anderen Dokument unverändert
+auf einer Nachbarseite steht, wird als *verschoben* ausgewiesen (blau hinterlegt) statt als
+fehlend und zusätzlich. So sagen beide Ansichten dasselbe.
+
+Zum Verfahren: Naheliegend wäre ein Vergleich über das ganze Dokument statt seitenweise. Das
+scheidet aber aus – die längste gemeinsame Teilfolge braucht eine Tabelle der Größe n × m, bei
+zwei Dokumenten mit je 20 000 Wörtern also mehrere Gigabyte. Der Abgleich läuft deshalb
+**nachträglich** und ausschließlich auf den bereits als unterschiedlich erkannten Wörtern; das
+sind wenige. Ab 3000 solcher Wörter je Seite unterbleibt er – dann liegt kein verschobener Satz
+vor, sondern ein anderes Dokument.
+
 ### Am Zeilenende getrennte Wörter
 
 Zwei Dokumente mit gleichem Inhalt brechen ihre Zeilen selten an derselben Stelle um. Aus
@@ -671,6 +703,7 @@ sind keine Binärdateien im Repository nötig und es besteht keine Netzwerkabhä
 | Ausgefüllte Formularfelder (AcroForm) | `test/formularfelder.test.js` |
 | Hybrid-Formulare mit Werten im XFA-Teil | `test/xfa-formulare.test.js` |
 | Am Zeilenende getrennte Wörter | `test/trennzeichen.test.js` |
+| Text auf einer Nachbarseite (Seitenversatz) | `test/seitenversatz.test.js` |
 | Kopf-/Fußzeile ausschließen, Ziel-URL in den Einstellungen | `test/kopf-fusszeile.test.js` |
 | Vertikalen Text (Rahmenvermerke) ausschließen | `test/vertikaler-text.test.js` |
 | Eigene Wörter vom Vergleich ausschließen | `test/ausschlussliste.test.js` |

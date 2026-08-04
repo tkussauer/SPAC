@@ -146,6 +146,18 @@
           </label>
 
           <label class="toggle">
+            <input type="checkbox" id="ignore-page-shift" checked />
+            <span>Text auf einer Nachbarseite nicht als Abweichung werten</span>
+          </label>
+          <span class="hint">
+            Verglichen wird Seite gegen Seite. Schiebt sich der Satz leicht – ein Absatz passt
+            nicht mehr auf die Seite –, rutscht Text über die Seitengrenze und würde doppelt
+            gemeldet: auf der einen Seite als fehlend, auf der nächsten als zusätzlich. Diese
+            Option gleicht das ab, solange der Text höchstens <strong>eine Seite</strong> vor
+            oder zurück gewandert ist. Größere Sprünge bleiben eine Abweichung.
+          </span>
+
+          <label class="toggle">
             <input type="checkbox" id="ignore-header-footer" />
             <span>Kopf- und Fußzeile ausschließen</span>
           </label>

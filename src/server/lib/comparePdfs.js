@@ -4,6 +4,7 @@ import { pagesToMarkdown } from './pdfMarkdown.js';
 import { buildLineDiff } from './markdownDiff.js';
 import { compareStyles } from './styleCompare.js';
 import { parseIgnoreWords, withoutIgnoredWords } from './ignoreWords.js';
+import { matchAcrossPages } from './pageShift.js';
 
 /**
  * Farbcodes für die Hervorhebung in der UI (FR6).
@@ -115,8 +116,11 @@ export function nichtGezeichneteFeldwerte(page) {
     .map((word) => ({ ...word.box, text: word.text }));
 }
 
-/** Vergleicht eine einzelne Seite (FR5) und liefert die Hervorhebungsboxen (FR6). */
-export function comparePage(referencePage, generatedPage) {
+/**
+ * Die Wortunterschiede einer Seite – noch als Wörter, nicht als Boxen. So lassen sie sich
+ * anschließend über Seitengrenzen hinweg gegenrechnen (siehe pageShift.js).
+ */
+function pageDifferences(referencePage, generatedPage) {
   const refWords = referencePage?.words ?? [];
   const genWords = generatedPage?.words ?? [];
   const refTexte = refWords.map((w) => w.text);
@@ -125,34 +129,46 @@ export function comparePage(referencePage, generatedPage) {
   // nicht als Abweichung und werden deshalb nicht markiert.
   const ops = foldSegmentationDifferences(diffTokens(refTexte, genTexte), refTexte, genTexte);
 
-  // Markiert wird ausschließlich im generierten Dokument:
-  //  - "added":   Text, der dort steht und von der Referenz abweicht
-  //  - "missing": Text der Referenz, der dort fehlt – an die entsprechende
-  //               Stelle der generierten Seite projiziert, sonst wäre er unsichtbar
   const missing = [];
   const added = [];
   for (const op of ops) {
-    if (op.type === 'removed') {
-      const word = refWords[op.aIndex];
-      missing.push({
-        ...projectBox(word.box, referencePage, generatedPage),
-        text: word.text,
-        type: 'missing',
-      });
-    } else if (op.type === 'added') {
-      const word = genWords[op.bIndex];
-      added.push({ ...word.box, text: word.text, type: 'added' });
-    }
+    if (op.type === 'removed') missing.push(refWords[op.aIndex]);
+    else if (op.type === 'added') added.push(genWords[op.bIndex]);
   }
 
-  const identical = missing.length === 0 && added.length === 0;
-  const highlights = [...mergeBoxes(added), ...mergeBoxes(missing)];
+  return { ops, missing, added };
+}
+
+/**
+ * Baut das Ergebnis einer Seite aus ihren Unterschieden.
+ *
+ * Markiert wird ausschließlich im generierten Dokument:
+ *  - "added":   Text, der dort steht und von der Referenz abweicht
+ *  - "missing": Text der Referenz, der dort fehlt – an die entsprechende Stelle der
+ *               generierten Seite projiziert, sonst wäre er unsichtbar
+ */
+function buildPageResult({ pageNumber, referencePage, generatedPage, missing, added, opCount, status }) {
+  const missingBoxes = missing.map((word) => ({
+    ...projectBox(word.box, referencePage, generatedPage),
+    text: word.text,
+    type: 'missing',
+  }));
+  const addedBoxes = added.map((word) => ({ ...word.box, text: word.text, type: 'added' }));
+
+  const identical = missingBoxes.length === 0 && addedBoxes.length === 0;
+  const highlights = [...mergeBoxes(addedBoxes), ...mergeBoxes(missingBoxes)];
+  const seite = referencePage ?? generatedPage;
 
   return {
-    pageNumber: referencePage?.pageNumber ?? generatedPage?.pageNumber,
-    status: identical ? 'equal' : 'different',
+    pageNumber: pageNumber ?? seite?.pageNumber,
+    status: status ?? (identical ? 'equal' : 'different'),
     identical,
-    similarity: similarity(ops),
+    // Anteil der Wörter, die zusammenpassen. Verschobene zählen dabei als übereinstimmend,
+    // weil sie aus den Unterschieden bereits herausgerechnet sind.
+    similarity:
+      opCount > 0
+        ? Math.round(((opCount - missing.length - added.length) / opCount) * 1000) / 1000
+        : 1,
     referencePresent: Boolean(referencePage),
     generatedPresent: Boolean(generatedPage),
     // Die Referenzseite wird ohne Markierungen dargestellt.
@@ -176,6 +192,18 @@ export function comparePage(referencePage, generatedPage) {
   };
 }
 
+/** Vergleicht eine einzelne Seite (FR5) und liefert die Hervorhebungsboxen (FR6). */
+export function comparePage(referencePage, generatedPage) {
+  const { ops, missing, added } = pageDifferences(referencePage, generatedPage);
+  return buildPageResult({
+    referencePage,
+    generatedPage,
+    missing,
+    added,
+    opCount: ops.length,
+  });
+}
+
 /**
  * Vergleicht zwei PDFs Seite für Seite (FR5) und liefert ein UI-taugliches Ergebnis (FR6).
  * @param {Buffer} referencePdf Referenz-PDF (hochgeladen)
@@ -193,6 +221,8 @@ export async function comparePdfs(
     ignoreVertical = false,
     ignoreSingleLetters = false,
     ignoreWords = '',
+    ignorePageShift = true,
+    maxPageShift = 1,
   } = {}
 ) {
   const [referenceRaw, generatedRaw] = await Promise.all([
@@ -251,55 +281,71 @@ export async function comparePdfs(
     : 0;
 
   const pageCount = Math.max(reference.pageCount, generated.pageCount);
-  const pages = [];
 
+  // 1. Durchgang: Unterschiede je Seite ermitteln – noch ohne Markierungen.
+  const seiten = [];
   for (let index = 0; index < pageCount; index += 1) {
     const referencePage = reference.pages[index] ?? null;
     const generatedPage = generated.pages[index] ?? null;
+    const { ops, missing, added } = pageDifferences(referencePage, generatedPage);
 
-    if (referencePage && generatedPage) {
-      pages.push(comparePage(referencePage, generatedPage));
-      continue;
-    }
-
-    // Seite nur in einem der beiden Dokumente vorhanden.
-    // Existiert sie nur im generierten Dokument, gilt ihr gesamter Inhalt als Abweichung;
-    // fehlt sie dort, gibt es nichts zu markieren – die Seite wird als fehlend ausgewiesen.
-    const page = referencePage ?? generatedPage;
-    pages.push({
-      pageNumber: index + 1,
-      status: referencePage ? 'only-in-reference' : 'only-in-generated',
-      identical: false,
-      similarity: 0,
-      referencePresent: Boolean(referencePage),
-      generatedPresent: Boolean(generatedPage),
-      reference: referencePage
-        ? {
-            width: page.width,
-            height: page.height,
-            highlights: [],
-            formValues: nichtGezeichneteFeldwerte(page),
-          }
-        : null,
-      generated: generatedPage
-        ? {
-            width: page.width,
-            height: page.height,
-            highlights: mergeBoxes(page.words.map((w) => ({ ...w.box, text: w.text, type: 'added' }))),
-            formValues: nichtGezeichneteFeldwerte(page),
-          }
-        : null,
-      counts: {
-        removedWords: referencePage ? page.words.length : 0,
-        addedWords: generatedPage ? page.words.length : 0,
-      },
+    seiten.push({
+      index,
+      referencePage,
+      generatedPage,
+      missing,
+      added,
+      opCount: ops.length,
+      // Fehlt eine Seite ganz, bleibt das sichtbar – auch wenn ihr Inhalt anderswo auftaucht.
+      status:
+        referencePage && generatedPage
+          ? null
+          : referencePage
+            ? 'only-in-reference'
+            : 'only-in-generated',
     });
+  }
+
+  // 2. Durchgang: Was auf einer Nachbarseite wieder auftaucht, ist nur verschoben.
+  // Ein leichter Versatz im Satz schiebt Text über die Seitengrenze; derselbe Inhalt würde
+  // sonst zweimal gemeldet – einmal als fehlend, einmal als zusätzlich.
+  const alleFehlend = seiten.flatMap((seite) =>
+    seite.missing.map((word) => ({ pageIndex: seite.index, text: word.text }))
+  );
+  const alleZusaetzlich = seiten.flatMap((seite) =>
+    seite.added.map((word) => ({ pageIndex: seite.index, text: word.text }))
+  );
+  const verschoben = ignorePageShift
+    ? matchAcrossPages(alleFehlend, alleZusaetzlich, Math.max(0, Number(maxPageShift) || 0))
+    : { missing: new Set(), added: new Set(), count: 0 };
+
+  const pages = [];
+  let fehlendVersatz = 0;
+  let zusaetzlichVersatz = 0;
+  for (const seite of seiten) {
+    const missing = seite.missing.filter(() => !verschoben.missing.has(fehlendVersatz++));
+    const added = seite.added.filter(() => !verschoben.added.has(zusaetzlichVersatz++));
+
+    pages.push(
+      buildPageResult({
+        pageNumber: seite.index + 1,
+        referencePage: seite.referencePage,
+        generatedPage: seite.generatedPage,
+        missing,
+        added,
+        opCount: seite.opCount,
+        status: seite.status,
+      })
+    );
   }
 
   // Zusätzliche Textfassung beider Dokumente als Markdown, zeilenweise verglichen.
   const referenceMarkdown = pagesToMarkdown(reference.pages);
   const generatedMarkdown = pagesToMarkdown(generated.pages);
-  const lineDiff = buildLineDiff(referenceMarkdown.lines, generatedMarkdown.lines);
+  const lineDiff = buildLineDiff(referenceMarkdown.lines, generatedMarkdown.lines, {
+    ignorePageShift,
+    maxPageShift,
+  });
 
   // Schriftarten, -größen, -schnitte und Textfarben gegenüberstellen.
   const style = compareStyles(reference.pages, generated.pages, {
@@ -316,6 +362,8 @@ export async function comparePdfs(
     formFields: { count: formFieldWords },
     // Am Zeilenende getrennte Wörter, die wieder zusammengesetzt wurden.
     hyphenation: { count: (referenceRaw.hyphenJoins ?? 0) + (generatedRaw.hyphenJoins ?? 0) },
+    // Wörter, die im anderen Dokument nur auf einer Nachbarseite stehen.
+    pageShift: { ignored: ignorePageShift, count: verschoben.count, maxPages: maxPageShift },
     // Frei gewählte Wörter/Wortfolgen, die vom Vergleich ausgenommen wurden.
     ignoredWords: {
       entries: ignorierte.map((eintrag) => eintrag.label),

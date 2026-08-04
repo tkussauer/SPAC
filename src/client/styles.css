@@ -500,6 +500,11 @@ button.small {
   background: rgba(26, 127, 75, 0.13);
 }
 
+/* Zeile steht im anderen Dokument unveraendert auf einer Nachbarseite. */
+.md-moved-bg {
+  background: #eef6ff;
+}
+
 .md-changed-bg {
   background: rgba(224, 168, 0, 0.16);
 }

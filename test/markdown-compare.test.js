@@ -57,7 +57,7 @@ test('Markdown: Zeilenvergleich erkennt geänderte, entfernte und ergänzte Zeil
   assert.equal(diff.rows[4].reference, null);
   assert.equal(diff.rows[4].generated, 'Neu hinzugekommen');
 
-  assert.deepEqual(diff.totals, { equal: 2, changed: 1, removed: 1, added: 1 });
+  assert.deepEqual(diff.totals, { equal: 2, changed: 1, removed: 1, added: 1, moved: 0 });
   assert.equal(diff.identical, false);
 });
 

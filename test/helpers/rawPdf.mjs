@@ -307,3 +307,39 @@ export function makeFormFieldPdf(felder, varianten = []) {
 
   return assemble(objs, anzahl);
 }
+
+/**
+ * Mehrseitiges PDF mit je einer Zeile Text pro Eintrag.
+ * `seiten` ist eine Liste von Zeilenlisten – eine je Seite.
+ *
+ * Nötig, um Text zu prüfen, der über eine Seitengrenze rutscht: Ein leichter Versatz im Satz
+ * schiebt einen Absatz auf die nächste Seite, der Inhalt bleibt derselbe.
+ */
+export function makeMultiPagePdf(seiten) {
+  const objs = [];
+  const seitenNummer = (index) => 4 + index * 2;
+  const inhaltNummer = (index) => 5 + index * 2;
+
+  objs[1] = '<< /Type /Catalog /Pages 2 0 R >>';
+  objs[2] =
+    `<< /Type /Pages /Kids [${seiten.map((_, i) => `${seitenNummer(i)} 0 R`).join(' ')}] ` +
+    `/Count ${seiten.length} >>`;
+  objs[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>';
+
+  seiten.forEach((zeilen, index) => {
+    const teile = ['BT /F1 12 Tf 50 780 Td'];
+    zeilen.forEach((zeile, zeilenIndex) => {
+      if (zeilenIndex > 0) teile.push('0 -16 Td');
+      teile.push(`(${esc(zeile)}) Tj`);
+    });
+    teile.push('ET');
+    const content = teile.join(' ');
+
+    objs[seitenNummer(index)] =
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] ` +
+      `/Resources << /Font << /F1 3 0 R >> >> /Contents ${inhaltNummer(index)} 0 R >>`;
+    objs[inhaltNummer(index)] = `<< /Length ${content.length} >>\nstream\n${content}\nendstream`;
+  });
+
+  return assemble(objs, 3 + seiten.length * 2);
+}
