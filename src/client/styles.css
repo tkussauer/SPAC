@@ -695,11 +695,6 @@ button.small {
   white-space: nowrap;
 }
 
-.style-empty {
-  color: var(--muted);
-  font-style: italic;
-}
-
 .style-row-only-reference {
   background: rgba(229, 72, 77, 0.08);
 }
@@ -726,6 +721,18 @@ button.small {
 .style-empty {
   padding: 1rem 0.2rem;
   color: var(--muted);
+  font-style: italic;
+}
+
+/* Tastenkuerzel auf einem Knopf – z. B. "Refresh F6". */
+kbd {
+  margin-left: 0.35rem;
+  padding: 0.05rem 0.3rem;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  font-family: inherit;
+  font-size: 0.78em;
+  opacity: 0.7;
 }
 
 .view-controls {

@@ -79,3 +79,25 @@ test('FR7/NFR3: Die UI hat einen Refresh-Button und merkt sich URL und Vorlagepf
   assert.match(client, /localStorage\.getItem/);
   assert.match(client, /loadSettings\(\)/);
 });
+
+/**
+ * Beim Prüfen einer Vorlage wiederholt man den Durchlauf ständig. F6 löst ihn aus, damit die
+ * Hand dafür nicht zur Maus muss.
+ */
+test('FR7: F6 löst den Refresh aus', async () => {
+  const client = await readFile(path.join(root, 'src/client/main.js'), 'utf8');
+
+  const behandlung = client.match(/document\.addEventListener\('keydown',[\s\S]*?\}\);/)?.[0];
+  assert.ok(behandlung, 'Es gibt keine Tastaturbehandlung');
+  assert.match(behandlung, /event\.key !== 'F6'/, 'F6 wird nicht abgefragt');
+  assert.match(behandlung, /event\.preventDefault\(\)/, 'Der Browser belegt F6 selbst – das muss unterdrückt werden');
+  assert.match(behandlung, /dom\.refreshButton\.disabled/, 'Ein abgeblendeter Knopf darf nicht auslösen');
+  assert.match(behandlung, /runComparison\(\{ reason: 'refresh' \}\)/, 'Es wird kein Refresh ausgelöst');
+  // Mit Zusatztaste ist F6 ein anderes Kürzel und darf nicht greifen.
+  assert.match(behandlung, /event\.ctrlKey \|\| event\.altKey/);
+
+  const html = await readFile(path.join(root, 'src/client/index.html'), 'utf8');
+  const knopf = html.match(/<button[^>]*id="refresh-button"[\s\S]*?<\/button>/)?.[0];
+  assert.match(knopf, /<kbd>F6<\/kbd>/, 'Das Kürzel steht nicht am Knopf');
+  assert.match(knopf, /title="[^"]*F6[^"]*"/, 'Der Tooltip nennt das Kürzel nicht');
+});

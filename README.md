@@ -506,8 +506,12 @@ zuordnen – das kann bei ungewöhnlich aufgebauten PDFs vorkommen –, werden s
 sondern vom Vergleich ausgenommen; die Oberfläche weist dann darauf hin.
 
 - **Vergleich generieren** – sendet den POST-Request, zeigt das erzeugte PDF und den Vergleich an.
-- **Refresh** – wiederholt denselben POST-Aufruf mit den aktuell eingetragenen Werten und
-  aktualisiert Ergebnis und Markierungen (z. B. nachdem die Vorlage auf dem Server geändert wurde).
+- **Refresh** (auch mit der Taste <kbd>F6</kbd>) – wiederholt denselben POST-Aufruf mit den
+  aktuell eingetragenen Werten und aktualisiert Ergebnis und Markierungen (z. B. nachdem die
+  Vorlage auf dem Server geändert wurde). Beim Prüfen einer Vorlage wiederholt man das ständig;
+  <kbd>F6</kbd> spart den Griff zur Maus. Die Taste wirkt überall auf der Seite – auch aus einem
+  Eingabefeld heraus – und tut nichts, solange der Knopf abgeblendet ist. Mit Zusatztaste
+  (Strg, Alt, Umschalt) bleibt sie wirkungslos, damit Browser-Kürzel unangetastet bleiben.
 - **Generiertes PDF herunterladen** – speichert die Antwort als Datei.
 
 Ziel-URL und Vorlagepfad werden im Browser (`localStorage`) gespeichert und stehen beim

@@ -1224,6 +1224,17 @@ function wireUp() {
   // FR7: Refresh wiederholt den POST-Aufruf mit den aktuell eingegebenen Werten.
   dom.refreshButton.addEventListener('click', () => runComparison({ reason: 'refresh' }));
 
+  // F6 löst denselben Durchlauf aus – beim Prüfen einer Vorlage wiederholt man ihn ständig,
+  // und die Hand muss dafür nicht zur Maus. Der Browser belegt F6 mit einem Fokuswechsel;
+  // das wird hier unterdrückt. Läuft gerade ein Vergleich oder fehlen die Eingaben, passiert
+  // nichts – genau wie beim Knopf, der dann abgeblendet ist.
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'F6' || event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
+    event.preventDefault();
+    if (dom.refreshButton.disabled) return;
+    runComparison({ reason: 'refresh' });
+  });
+
   // NFR3: Eingaben bleiben erhalten.
   dom.targetUrl.addEventListener('input', () => {
     saveSettings();
