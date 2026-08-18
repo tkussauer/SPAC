@@ -217,9 +217,8 @@ function setBusy(busy) {
 }
 
 function canRefresh() {
-  // Test-XML und Referenz sind beide optional – ohne sie entsteht das Dokument allein aus
-  // der Vorlage und es gibt nichts zu vergleichen.
-  return Boolean(dom.targetUrl.value.trim() && dom.templatePath.value.trim());
+  // Das Referenz-PDF ist optional – ohne es gibt es nur nichts zu vergleichen.
+  return Boolean(state.xmlContent && dom.targetUrl.value.trim() && dom.templatePath.value.trim());
 }
 
 async function readErrorFromResponse(response) {
@@ -290,6 +289,10 @@ async function runComparison({ reason = 'generate' } = {}) {
   if (state.busy) return;
   clearError();
 
+  if (!state.xmlContent) {
+    showError('Bitte zuerst eine Test-XML-Datei auswählen.');
+    return;
+  }
   if (!dom.targetUrl.value.trim()) {
     showError('Bitte eine Ziel-URL für den POST-Aufruf angeben.');
     return;
@@ -309,7 +312,7 @@ async function runComparison({ reason = 'generate' } = {}) {
       body: JSON.stringify({
         targetUrl: dom.targetUrl.value.trim(),
         templatePath: dom.templatePath.value.trim(),
-        xmlContent: state.xmlContent ?? '',
+        xmlContent: state.xmlContent,
         xmlFileName: state.xmlFileName,
         referenceId: state.referenceId,
         contentType: dom.contentType.value.trim() || undefined,
@@ -416,6 +419,7 @@ async function renderResult(result) {
   if (!comparison) {
     // Ohne Referenz-PDF gibt es nichts zu vergleichen. Das erzeugte Dokument lässt sich aber
     // im Original prüfen – die drei Vergleichsreiter blendet applyActiveTab dann aus.
+    // (Die Test-XML ist dagegen Pflicht; ohne sie kommt es gar nicht bis hierher.)
     dom.summary.hidden = true;
     state.markdown = null;
     state.style = null;
@@ -760,8 +764,8 @@ function renderSpacing(spacing) {
 let letzterCaptureVergleich = null;
 
 async function vergleicheMitAufzeichnung() {
-  if (!dom.templatePath.value.trim()) {
-    dom.captureStatus.textContent = 'Bitte zuerst einen Vorlagepfad angeben.';
+  if (!state.xmlContent) {
+    dom.captureStatus.textContent = 'Bitte zuerst eine Test-XML-Datei auswählen.';
     return;
   }
 
@@ -772,7 +776,7 @@ async function vergleicheMitAufzeichnung() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         templatePath: dom.templatePath.value.trim(),
-        xmlContent: state.xmlContent ?? '',
+        xmlContent: state.xmlContent,
         xmlFileName: state.xmlFileName,
         contentType: dom.contentType.value.trim() || undefined,
         extraHeaders: dom.extraHeaders.value,

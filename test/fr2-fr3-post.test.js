@@ -110,22 +110,8 @@ test('FR3: Der tatsächlich gesendete Body entspricht der Spezifikation', async 
   }
 });
 
-test('FR3: Ein fehlender Vorlagepfad führt zu einer verständlichen Meldung', () => {
+test('FR3: Fehlende Pflichtangaben führen zu verständlichen Meldungen', () => {
   assert.throws(() => buildPostBody({ templatePath: '   ', xmlContent: SAMPLE_XML }), /Vorlagepfad/);
-});
-
-/**
- * Die Test-XML ist optional: Ein Dokument soll sich auch allein aus der Vorlage erzeugen
- * lassen – etwa um zu prüfen, ob dessen Formularfelder bedienbar sind. Der Body besteht dann
- * nur aus dem Vorlagepfad, ohne die beiden Zeilenumbrüche eines leeren Rumpfs.
- */
-test('FR3: Ohne Test-XML besteht der Body nur aus dem Vorlagepfad', () => {
-  assert.equal(buildPostBody({ templatePath: SAMPLE_TEMPLATE_PATH }), SAMPLE_TEMPLATE_PATH);
-  assert.equal(buildPostBody({ templatePath: SAMPLE_TEMPLATE_PATH, xmlContent: '' }), SAMPLE_TEMPLATE_PATH);
-  assert.equal(buildPostBody({ templatePath: SAMPLE_TEMPLATE_PATH, xmlContent: '   ' }), SAMPLE_TEMPLATE_PATH);
-  // Auch bei anderen Zeilenenden bleibt es beim reinen Pfad – es gibt keinen Rumpf.
-  assert.equal(
-    buildPostBody({ templatePath: SAMPLE_TEMPLATE_PATH, xmlContent: '', lineEnding: 'crlf' }),
-    SAMPLE_TEMPLATE_PATH
-  );
+  assert.throws(() => buildPostBody({ templatePath: SAMPLE_TEMPLATE_PATH, xmlContent: '' }), /Test-XML/);
+  assert.throws(() => buildPostBody({ templatePath: SAMPLE_TEMPLATE_PATH }), /Test-XML/);
 });

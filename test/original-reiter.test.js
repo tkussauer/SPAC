@@ -75,47 +75,11 @@ test('Original: Das PDF wird zur Anzeige im Browser ausgeliefert', async () => {
 });
 
 /**
- * Ein Dokument soll sich auch **ohne Test-XML und ohne Referenz** erzeugen lassen – etwa um
- * zu prüfen, ob die Formularfelder einer Vorlage überhaupt bedienbar sind. Verglichen wird
- * dann nichts; es bleibt der Reiter „Original prüfen".
+ * Ein Dokument soll sich auch **ohne Referenz-PDF** erzeugen lassen – etwa um zu prüfen, ob
+ * die Formularfelder einer Vorlage überhaupt bedienbar sind. Verglichen wird dann nichts;
+ * es bleibt der Reiter „Original prüfen". Die Test-XML bleibt Pflichtangabe.
  */
-test('Original: Erzeugen ohne XML und ohne Referenz', async () => {
-  const generiert = await makePdf(['Nur aus der Vorlage']);
-  let gesendeterBody = null;
-  const target = await startMockTarget((anfrage) => {
-    gesendeterBody = anfrage.body;
-    return { body: generiert };
-  });
-  const app = await startApp();
-
-  try {
-    const antwort = await fetch(`${app.url}/api/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        targetUrl: target.url,
-        templatePath: SAMPLE_TEMPLATE_PATH,
-      }),
-    });
-    const ergebnis = await antwort.json();
-
-    assert.equal(antwort.status, 200);
-    assert.equal(gesendeterBody, SAMPLE_TEMPLATE_PATH, 'Ohne XML wird nur der Vorlagepfad gesendet');
-    assert.ok(ergebnis.generatedUrl, 'Das erzeugte PDF muss abrufbar sein');
-    assert.equal(ergebnis.comparison, null, 'Ohne Referenz gibt es nichts zu vergleichen');
-    assert.equal(ergebnis.referenceUrl ?? null, null);
-
-    // Das Dokument liegt bereit und lässt sich im Betrachter öffnen.
-    const pdf = await fetch(`${app.url}${ergebnis.generatedUrl}`);
-    assert.equal(pdf.status, 200);
-    assert.match(pdf.headers.get('content-disposition'), /^inline;/);
-  } finally {
-    await app.close();
-    await target.close();
-  }
-});
-
-test('Original: Ohne Referenz, aber mit XML – ebenfalls kein Vergleich', async () => {
+test('Original: Erzeugen ohne Referenz-PDF', async () => {
   const generiert = await makePdf(['Aus der XML erzeugt']);
   let gesendeterBody = null;
   const target = await startMockTarget((anfrage) => {
@@ -137,11 +101,34 @@ test('Original: Ohne Referenz, aber mit XML – ebenfalls kein Vergleich', async
     const ergebnis = await antwort.json();
 
     assert.equal(antwort.status, 200);
-    assert.ok(gesendeterBody.startsWith(`${SAMPLE_TEMPLATE_PATH}\n\n`), 'Mit XML bleibt der Aufbau gleich');
-    assert.equal(ergebnis.comparison, null);
+    assert.ok(gesendeterBody.startsWith(`${SAMPLE_TEMPLATE_PATH}\n\n`), 'Der Aufbau des Bodys bleibt gleich');
+    assert.ok(ergebnis.generatedUrl, 'Das erzeugte PDF muss abrufbar sein');
+    assert.equal(ergebnis.comparison, null, 'Ohne Referenz gibt es nichts zu vergleichen');
+    assert.equal(ergebnis.referenceUrl ?? null, null);
+
+    // Das Dokument liegt bereit und lässt sich im Betrachter öffnen.
+    const pdf = await fetch(`${app.url}${ergebnis.generatedUrl}`);
+    assert.equal(pdf.status, 200);
+    assert.match(pdf.headers.get('content-disposition'), /^inline;/);
   } finally {
     await app.close();
     await target.close();
+  }
+});
+
+test('Original: Die Test-XML bleibt Pflicht', async () => {
+  const app = await startApp();
+  try {
+    const antwort = await fetch(`${app.url}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ targetUrl: 'http://127.0.0.1:9/x', templatePath: SAMPLE_TEMPLATE_PATH }),
+    });
+
+    assert.equal(antwort.status, 400);
+    assert.equal((await antwort.json()).error.code, 'XML_REQUIRED');
+  } finally {
+    await app.close();
   }
 });
 
@@ -156,18 +143,12 @@ test('Original: Ohne Vergleich bleibt allein der Original-Reiter', async () => {
   );
   assert.match(client, /knopf\.hidden = !verfuegbar\.includes\(name\)/, 'Die Reiter werden nicht ausgeblendet');
 
-  // Test-XML und Referenz sind keine Pflichtfelder mehr.
+  // Nur das Referenz-PDF ist keine Pflichtangabe mehr; die Test-XML bleibt eine.
   const html = await readFile(path.join(root, 'src/client/index.html'), 'utf8');
   const xml = html.match(/<input[^>]*id="xml-file"[^>]*>/s)?.[0];
   const referenz = html.match(/<input[^>]*id="reference-file"[^>]*>/s)?.[0];
-  assert.ok(!/required/.test(xml), 'Die Test-XML darf keine Pflichtangabe mehr sein');
+  assert.match(xml, /required/, 'Die Test-XML bleibt Pflichtangabe');
   assert.ok(!/required/.test(referenz), 'Das Referenz-PDF darf keine Pflichtangabe mehr sein');
-
-  assert.match(client, /function canRefresh\(\)[\s\S]*?dom\.targetUrl/, 'Refresh hängt noch an der XML');
-  assert.ok(
-    !/showError\('Bitte zuerst eine Test-XML-Datei auswählen\.'\)/.test(client),
-    'Der Zwang zur Test-XML ist noch da'
-  );
 });
 
 test('Original: Ohne Referenz ist deren Auswahl gesperrt', async () => {
