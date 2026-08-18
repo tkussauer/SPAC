@@ -1,6 +1,6 @@
 {
   "name": "spac-pdf-vergleich",
-  "version": "1.0.0",
+  "version": "3.0.0",
   "private": true,
   "description": "Lokales Web-Tool: Test-XML an POST-Endpoint schicken, erzeugtes PDF mit Referenz-PDF vergleichen und Abweichungen farblich hervorheben.",
   "type": "module",

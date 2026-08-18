@@ -11,6 +11,7 @@ import { PdfStore } from './lib/store.js';
 import { logger, DEFAULT_LOG_FILE } from './lib/logger.js';
 import { buildCurlCommand, parseHeaderLines } from './lib/httpHeaders.js';
 import { assertPdf, validateTargetUrl, validateTemplatePath, validateXmlContent } from './lib/validate.js';
+import { APP_VERSION, APP_VERSION_LABEL } from '../version.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const PUBLIC_DIR = path.resolve(here, '../../public');
@@ -85,7 +86,7 @@ export function createApp({
   app.locals.store = store;
 
   app.get('/api/health', (_req, res) => {
-    res.json({ ok: true, version: 1, storedPdfs: store.size });
+    res.json({ ok: true, version: 1, app: APP_VERSION, appLabel: APP_VERSION_LABEL, storedPdfs: store.size });
   });
 
   app.get('/api/config', (_req, res) => {

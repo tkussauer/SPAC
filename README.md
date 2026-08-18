@@ -710,6 +710,10 @@ die Zeilenstruktur des Bodys aus FR3 garantiert eingehalten wird.
 
 ## Weitere Festlegungen
 
+- **Version im Titel:** Der Browser-Titel und die Überschrift zeigen die Hauptversion an
+  (aktuell `PDF-Vergleichstool V3`). Maßgeblich ist das Feld `version` in `package.json`; die
+  Kennung `V3` wird daraus abgeleitet (`src/version.js`) und ist auch über `GET /api/health`
+  abrufbar. Ein Test hält Titel, Überschrift und `package.json` zusammen.
 - **Speicherung der PDFs:** im Arbeitsspeicher des Servers (die letzten 20 Dokumente).
   Nach einem Serverneustart muss die Referenz-PDF erneut ausgewählt werden; die Anwendung
   weist mit einer klaren Meldung darauf hin. Es werden keine Dateien auf die Platte geschrieben.
