@@ -310,6 +310,9 @@
         <button type="button" class="tab" role="tab" id="tab-style" aria-controls="style-panel" aria-selected="false">
           Font &amp; Stil
         </button>
+        <button type="button" class="tab" role="tab" id="tab-original" aria-controls="original-panel" aria-selected="false">
+          Original prüfen
+        </button>
       </div>
 
       <!-- Ansichtssteuerung: Markierungen ein-/ausblenden und Legende (FR6) -->
@@ -419,6 +422,35 @@
             </div>
           </div>
         </div>
+      </section>
+
+      <!-- Das erzeugte PDF im PDF-Betrachter des Browsers: Nur dort lässt sich prüfen, ob
+           Eingabefelder und Ankreuzfelder wirklich bedienbar sind. -->
+      <section id="original-panel" class="card original-panel" role="tabpanel" aria-labelledby="tab-original" hidden>
+        <div class="original-controls">
+          <label class="field field-inline">
+            <span class="field-label">Dokument</span>
+            <select id="original-which">
+              <option value="generated" selected>Generiertes PDF</option>
+              <option value="reference">Referenz-PDF</option>
+            </select>
+          </label>
+          <a id="original-open" class="link-button" target="_blank" rel="noopener">In neuem Tab öffnen</a>
+          <button type="button" id="original-reload" class="secondary small">Zurücksetzen</button>
+        </div>
+        <p class="hint" id="original-hint">
+          Hier läuft das PDF im Betrachter des Browsers – unverändert, ohne Zutun dieser
+          Anwendung. Nur so lässt sich prüfen, ob Eingabefelder beschreibbar und Ankreuzfelder
+          anklickbar sind. Eingaben werden <strong>nicht</strong> gespeichert; „Zurücksetzen"
+          lädt das Dokument neu. Zeigt der Bereich nichts an, hat der Browser keinen eingebauten
+          PDF-Betrachter – dann hilft „In neuem Tab öffnen" oder das Herunterladen.
+        </p>
+        <p class="hint original-fallback" id="original-fallback" hidden>
+          <strong>Dieser Browser hat keinen eingebauten PDF-Betrachter.</strong> Das Dokument
+          lässt sich hier deshalb nicht einbetten – „In neuem Tab öffnen" oder das Herunterladen
+          und Öffnen im Acrobat Reader führen zum Ziel.
+        </p>
+        <iframe id="original-frame" class="original-frame" title="Erzeugtes PDF im Original"></iframe>
       </section>
     </main>
 

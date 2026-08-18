@@ -36,6 +36,13 @@ const dom = {
   tabPdf: el('tab-pdf'),
   tabMarkdown: el('tab-markdown'),
   tabStyle: el('tab-style'),
+  tabOriginal: el('tab-original'),
+  originalPanel: el('original-panel'),
+  originalFrame: el('original-frame'),
+  originalWhich: el('original-which'),
+  originalOpen: el('original-open'),
+  originalReload: el('original-reload'),
+  originalFallback: el('original-fallback'),
   stylePanel: el('style-panel'),
   styleSummary: el('style-summary'),
   styleColorHint: el('style-color-hint'),
@@ -96,8 +103,10 @@ const state = {
   markdown: null,
   /** Font- und Stilvergleich des letzten Laufs. */
   style: null,
-  /** Aktiver Reiter: 'pdf', 'markdown' oder 'style'. */
+  /** Aktiver Reiter: 'pdf', 'markdown', 'style' oder 'original'. */
   activeTab: 'pdf',
+  /** Adressen der beiden PDFs des letzten Laufs – für den Reiter "Original prüfen". */
+  pdfUrls: { generated: null, reference: null },
 };
 
 // ---------------------------------------------------------------- Persistenz
@@ -422,6 +431,7 @@ async function renderResult(result) {
   renderSummary(result, comparison);
   renderMarkdownDiff(comparison.markdown);
   renderStyleComparison(comparison.style);
+  state.pdfUrls = { generated: result.generatedUrl ?? null, reference: result.referenceUrl ?? null };
   dom.tabs.hidden = false;
   await renderPages(result, comparison);
   applyActiveTab();
@@ -876,7 +886,7 @@ function uebernehmeCaptureHeader() {
 
 // ------------------------------------------------------------------- Reiter
 
-const TABS = ['pdf', 'markdown', 'style'];
+const TABS = ['pdf', 'markdown', 'style', 'original'];
 
 function setActiveTab(tab) {
   state.activeTab = TABS.includes(tab) ? tab : 'pdf';
@@ -891,11 +901,43 @@ function applyActiveTab() {
   dom.tabPdf.setAttribute('aria-selected', String(aktiv === 'pdf'));
   dom.tabMarkdown.setAttribute('aria-selected', String(aktiv === 'markdown'));
   dom.tabStyle.setAttribute('aria-selected', String(aktiv === 'style'));
+  dom.tabOriginal.setAttribute('aria-selected', String(aktiv === 'original'));
 
   dom.viewer.hidden = aktiv !== 'pdf' || dom.viewer.childElementCount === 0;
   dom.viewControls.hidden = aktiv !== 'pdf' || !ergebnisVorhanden || !state.markdown;
   dom.markdownPanel.hidden = aktiv !== 'markdown' || !ergebnisVorhanden;
   dom.stylePanel.hidden = aktiv !== 'style' || !ergebnisVorhanden;
+  dom.originalPanel.hidden = aktiv !== 'original' || !ergebnisVorhanden;
+  applyOriginalDocument();
+}
+
+/**
+ * Zeigt das gewählte PDF im Betrachter des Browsers.
+ *
+ * Bewusst über ein iframe auf die unveränderte Datei: Nur der Betrachter selbst macht
+ * Eingabe- und Ankreuzfelder bedienbar. Würde die Anwendung das PDF wie in den anderen
+ * Reitern selbst zeichnen, ließe sich genau das nicht prüfen.
+ *
+ * Geladen wird erst, wenn der Reiter offen ist – und nur, wenn sich die Adresse geändert hat.
+ * Sonst gingen Eingaben beim Reiterwechsel verloren.
+ */
+function applyOriginalDocument({ force = false } = {}) {
+  const url = state.pdfUrls[dom.originalWhich.value] ?? null;
+  dom.originalOpen.href = url ?? '#';
+  dom.originalOpen.hidden = !url;
+  dom.originalReload.disabled = !url;
+
+  // Ohne eingebauten Betrachter bliebe nur eine leere Fläche – dann lieber sagen, warum.
+  const kannEinbetten = navigator.pdfViewerEnabled !== false;
+  dom.originalFallback.hidden = kannEinbetten;
+  dom.originalFrame.hidden = !kannEinbetten;
+
+  if (state.activeTab !== 'original' || !url || !kannEinbetten) return;
+  // "#toolbar=1" hält die Bedienleiste des Betrachters sichtbar (Seitenzahl, Zoom, Drucken).
+  const ziel = `${url}#toolbar=1`;
+  if (force || dom.originalFrame.getAttribute('src') !== ziel) {
+    dom.originalFrame.setAttribute('src', ziel);
+  }
 }
 
 function renderSummary(result, comparison) {
@@ -1224,6 +1266,10 @@ function wireUp() {
   // FR7: Refresh wiederholt den POST-Aufruf mit den aktuell eingegebenen Werten.
   dom.refreshButton.addEventListener('click', () => runComparison({ reason: 'refresh' }));
 
+  // Reiter "Original prüfen"
+  dom.originalWhich.addEventListener('change', () => applyOriginalDocument({ force: true }));
+  dom.originalReload.addEventListener('click', () => applyOriginalDocument({ force: true }));
+
   // F6 löst denselben Durchlauf aus – beim Prüfen einer Vorlage wiederholt man ihn ständig,
   // und die Hand muss dafür nicht zur Maus. Der Browser belegt F6 mit einem Fokuswechsel;
   // das wird hier unterdrückt. Läuft gerade ein Vergleich oder fehlen die Eingaben, passiert
@@ -1270,7 +1316,12 @@ function wireUp() {
   applyHighlightVisibility();
 
   // Reiter: PDF-Vergleich / Markdown-Vergleich / Font & Stil
-  const tabButtons = { pdf: dom.tabPdf, markdown: dom.tabMarkdown, style: dom.tabStyle };
+  const tabButtons = {
+    pdf: dom.tabPdf,
+    markdown: dom.tabMarkdown,
+    style: dom.tabStyle,
+    original: dom.tabOriginal,
+  };
   for (const [name, button] of Object.entries(tabButtons)) {
     button.addEventListener('click', () => setActiveTab(name));
   }

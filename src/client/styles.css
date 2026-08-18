@@ -735,6 +735,38 @@ kbd {
   opacity: 0.7;
 }
 
+/* ------------------------------------------------- Reiter "Original pruefen" */
+
+.original-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.original-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem 1.25rem;
+}
+
+.original-fallback {
+  padding: 0.75rem;
+  border: 1px solid var(--diff);
+  border-radius: 6px;
+  background: #fff5f5;
+  color: #7f1d1d;
+}
+
+/* Der Betrachter des Browsers braucht Hoehe, um bedienbar zu sein. */
+.original-frame {
+  width: 100%;
+  height: min(80vh, 1100px);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+}
+
 .view-controls {
   display: flex;
   flex-wrap: wrap;

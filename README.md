@@ -457,6 +457,30 @@ Es handelt sich um eine Textfassung, nicht um eine originalgetreue Layout-Umwand
 Tabellenstrukturen, Bilder und Spaltenlayouts gehen dabei verloren – für die Prüfung der
 Layouttreue bleibt der PDF-Reiter zuständig.
 
+### Reiter „Original prüfen"
+
+Die drei Vergleichsreiter zeichnen das Dokument **nach**: Der PDF-Reiter rendert es mit pdf.js,
+Markdown- und Stilreiter arbeiten auf dem extrahierten Text. In keinem davon lässt sich ein
+Eingabefeld beschreiben oder ein Kästchen anklicken – dafür bräuchte es einen echten
+PDF-Betrachter.
+
+Genau den bringt der vierte Reiter ins Bild: Er bettet die **unveränderte Datei** in den
+PDF-Betrachter des Browsers ein (`<iframe>` auf `/api/pdf/…`, ausgeliefert als `inline`). Damit
+ist prüfbar, was der Vergleich nicht sehen kann:
+
+- Lassen sich Eingabefelder anklicken und beschreiben?
+- Reagieren Ankreuz- und Auswahlfelder?
+- Stimmt die Tabulatorreihenfolge?
+
+Umschaltbar zwischen erzeugtem PDF und Referenz, dazu „In neuem Tab öffnen" (etwa um das
+Dokument im Acrobat Reader zu prüfen) und „Zurücksetzen", das die Datei neu lädt. Eingaben
+werden bewusst **nicht** gespeichert – es geht um die Bedienbarkeit, nicht um Inhalte.
+
+Geladen wird erst beim Öffnen des Reiters und nur bei geänderter Adresse: Sonst gingen Eingaben
+schon beim Wechsel zu einem anderen Reiter verloren. Meldet der Browser keinen eingebauten
+PDF-Betrachter (`navigator.pdfViewerEnabled`), erscheint statt einer leeren Fläche ein Hinweis
+mit den beiden anderen Wegen.
+
 ### Reiter „Font & Stil"
 
 Der dritte Reiter vergleicht die **Formatierung** statt des Inhalts: Schriftart,
@@ -737,6 +761,7 @@ sind keine Binärdateien im Repository nötig und es besteht keine Netzwerkabhä
 | Lesereihenfolge unabhängig von der Zeichenreihenfolge | `test/lesereihenfolge.test.js` |
 | Markdown-Vergleich (Textfassung, Zeilendiff, Reiter) | `test/markdown-compare.test.js` |
 | Font- und Stilvergleich (Schrift, Größe, Schnitt, Farbe) | `test/style-compare.test.js` |
+| Reiter „Original prüfen" (Formularfelder bedienen) | `test/original-reiter.test.js` |
 | Abstandsvarianten (Zeilen-, Zeichen-, Wortabstand) | `test/abstaende.test.js` |
 | FR4 PDF-Response anzeigen/speichern | `test/fr4-pdf-response.test.js` |
 | FR5 seitenweiser Vergleich | `test/fr5-vergleich.test.js` |

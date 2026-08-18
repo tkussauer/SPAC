@@ -228,7 +228,7 @@ test('Stil: Die Oberfläche stellt den Vergleich über einen dritten Reiter bere
   const client = await readFile(path.join(root, 'src/client/main.js'), 'utf8');
   assert.match(client, /renderStyleComparison/, 'Der Stilvergleich wird nicht gerendert');
   assert.match(client, /dom\.stylePanel\.hidden = aktiv !== 'style'/, 'Die Ansicht wird nicht umgeschaltet');
-  assert.match(client, /const TABS = \['pdf', 'markdown', 'style'\]/, 'Der dritte Reiter fehlt in der Reiterliste');
+  assert.match(client, /const TABS = \['pdf', 'markdown', 'style',/, 'Der dritte Reiter fehlt in der Reiterliste');
 
   const built = await readFile(path.join(root, 'public/app.js'), 'utf8');
   assert.ok(built.includes('style-entry'), 'Im Build fehlt die Stilansicht');
