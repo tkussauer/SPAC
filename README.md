@@ -62,9 +62,26 @@ npm test          # Testsuite
 
 | Feld | Bedeutung |
 | --- | --- |
-| **Test-XML-Datei** | Lokale `.xml`-Datei. Ihr Inhalt (ohne XML-Deklaration) bildet den Hauptteil des POST-Bodys. |
-| **Referenz-PDF-Datei** | Lokale `.pdf`-Datei, gegen die verglichen wird. |
-| **Vorlagepfad** | Freier String, wird als erste Zeile des POST-Bodys gesendet. |
+| **Test-XML-Datei** | Lokale `.xml`-Datei. Ihr Inhalt (ohne XML-Deklaration) bildet den Hauptteil des POST-Bodys. **Optional.** |
+| **Referenz-PDF-Datei** | Lokale `.pdf`-Datei, gegen die verglichen wird. **Optional.** |
+| **Vorlagepfad** | Freier String, wird als erste Zeile des POST-Bodys gesendet. Pflichtangabe. |
+
+Zwingend sind nur **Vorlagepfad** und **Ziel-URL**. Die beiden Dateien lassen sich weglassen –
+mit diesen Folgen:
+
+| Angegeben | POST-Body | Ansicht |
+| --- | --- | --- |
+| XML + Referenz | Vorlagepfad, Leerzeile, XML | alle vier Reiter |
+| nur XML | Vorlagepfad, Leerzeile, XML | nur „Original prüfen" |
+| nur Referenz | nur der Vorlagepfad | alle vier Reiter |
+| keines von beidem | nur der Vorlagepfad | nur „Original prüfen" |
+
+Ohne Test-XML besteht der Body **allein aus dem Vorlagepfad** – ein leerer Rumpf mit zwei
+Zeilenumbrüchen wäre kein leerer Inhalt, sondern Leerraum, den der Zielservice zu deuten
+versuchen müsste. Ohne Referenz gibt es nichts zu vergleichen; die drei Vergleichsreiter
+verschwinden, und es bleibt „Original prüfen" – gedacht für den Fall, dass nur zu klären ist,
+ob eine Vorlage überhaupt ein bedienbares Formular erzeugt. Die zuletzt gewählte Ansicht bleibt
+dabei gemerkt: Sobald wieder ein Vergleich vorliegt, ist der alte Reiter zurück.
 
 Die **Ziel-URL für den POST-Aufruf** steht unter „Erweiterte Einstellungen" und ist bereits mit
 `https://inspire-scaler.ccm.dev.babiel.com/rest/api/submit-job/CreateTestDocumentDl` vorbelegt –

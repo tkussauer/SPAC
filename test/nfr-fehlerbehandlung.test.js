@@ -53,10 +53,8 @@ test('NFR2: HTTP-Fehlerstatus des Zielservice wird weitergereicht', async () => 
 test('NFR2: Ungültige XML-Datei wird abgelehnt', async () => {
   const app = await startApp();
   try {
-    for (const [xmlContent, code] of [
-      ['', 'XML_REQUIRED'],
-      ['Das ist nur Text ohne Markup', 'XML_INVALID'],
-    ]) {
+    // Eine leere Angabe heißt "ohne XML" und ist erlaubt; geprüft wird nur, was da ist.
+    for (const [xmlContent, code] of [['Das ist nur Text ohne Markup', 'XML_INVALID']]) {
       const response = await fetch(`${app.url}/api/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

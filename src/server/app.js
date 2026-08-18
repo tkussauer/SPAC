@@ -138,7 +138,11 @@ export function createApp({
 
       const { templatePath, xmlContent, xmlFileName, contentType, extraHeaders, lineEnding } = req.body ?? {};
       const template = validateTemplatePath(templatePath);
-      validateXmlContent(xmlContent, xmlFileName || 'Test-XML');
+      // Ohne Test-XML wird nur die Vorlage gesendet – geprüft wird sie deshalb nur, wenn
+      // überhaupt eine angegeben ist.
+      if (typeof xmlContent === 'string' && xmlContent.trim() !== '') {
+        validateXmlContent(xmlContent, xmlFileName || 'Test-XML');
+      }
 
       const eigener = buildRequest({
         targetUrl: 'http://vergleich.lokal/',
@@ -216,7 +220,11 @@ export function createApp({
 
       const url = validateTargetUrl(targetUrl);
       const template = validateTemplatePath(templatePath);
-      validateXmlContent(xmlContent, xmlFileName || 'Test-XML');
+      // Ohne Test-XML wird nur die Vorlage gesendet – geprüft wird sie deshalb nur, wenn
+      // überhaupt eine angegeben ist.
+      if (typeof xmlContent === 'string' && xmlContent.trim() !== '') {
+        validateXmlContent(xmlContent, xmlFileName || 'Test-XML');
+      }
       const zusatzHeader = parseHeaderLines(extraHeaders);
 
       const reference = referenceId ? store.get(referenceId) : null;

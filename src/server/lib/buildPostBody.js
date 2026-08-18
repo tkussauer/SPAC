@@ -44,6 +44,11 @@ export function detectLineEnding(text) {
  *   Zeile 2: leer
  *   ab Zeile 3: Inhalt der Test-XML ohne XML-Deklaration
  *
+ * **Ohne Test-XML** besteht der Body nur aus dem Vorlagepfad. Das ist der Fall, in dem ein
+ * Dokument allein aus der Vorlage erzeugt werden soll – etwa um zu prüfen, ob dessen
+ * Formularfelder überhaupt bedienbar sind. Ein leerer Rumpf mit zwei Zeilenumbrüchen wäre
+ * kein leerer Inhalt, sondern Leerraum, den der Zielservice zu deuten versuchen müsste.
+ *
  * @param {'lf'|'crlf'|'keep'} lineEnding Zeilenenden des Bodys. "keep" übernimmt die
  *        Zeilenenden der XML-Datei unverändert – manche Endpoints reagieren darauf.
  */
@@ -51,11 +56,9 @@ export function buildPostBody({ templatePath, xmlContent, lineEnding = 'lf' }) {
   if (typeof templatePath !== 'string' || templatePath.trim() === '') {
     throw new AppError('TEMPLATE_PATH_REQUIRED', 'Bitte einen Vorlagepfad angeben.');
   }
-  if (typeof xmlContent !== 'string' || xmlContent.trim() === '') {
-    throw new AppError('XML_REQUIRED', 'Bitte eine Test-XML-Datei auswählen (Datei ist leer oder wurde nicht gelesen).');
-  }
-
   const path = normalizeLineEndings(templatePath).split('\n')[0].trim();
+  if (typeof xmlContent !== 'string' || xmlContent.trim() === '') return path;
+
   const xmlBody = stripXmlDeclaration(xmlContent);
 
   if (lineEnding === 'keep') {

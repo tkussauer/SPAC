@@ -217,7 +217,9 @@ function setBusy(busy) {
 }
 
 function canRefresh() {
-  return Boolean(state.xmlContent && dom.targetUrl.value.trim() && dom.templatePath.value.trim());
+  // Test-XML und Referenz sind beide optional – ohne sie entsteht das Dokument allein aus
+  // der Vorlage und es gibt nichts zu vergleichen.
+  return Boolean(dom.targetUrl.value.trim() && dom.templatePath.value.trim());
 }
 
 async function readErrorFromResponse(response) {
@@ -288,10 +290,6 @@ async function runComparison({ reason = 'generate' } = {}) {
   if (state.busy) return;
   clearError();
 
-  if (!state.xmlContent) {
-    showError('Bitte zuerst eine Test-XML-Datei auswählen.');
-    return;
-  }
   if (!dom.targetUrl.value.trim()) {
     showError('Bitte eine Ziel-URL für den POST-Aufruf angeben.');
     return;
@@ -311,7 +309,7 @@ async function runComparison({ reason = 'generate' } = {}) {
       body: JSON.stringify({
         targetUrl: dom.targetUrl.value.trim(),
         templatePath: dom.templatePath.value.trim(),
-        xmlContent: state.xmlContent,
+        xmlContent: state.xmlContent ?? '',
         xmlFileName: state.xmlFileName,
         referenceId: state.referenceId,
         contentType: dom.contentType.value.trim() || undefined,
@@ -413,25 +411,23 @@ async function renderResult(result) {
   }
 
   const comparison = result.comparison;
+  state.pdfUrls = { generated: result.generatedUrl ?? null, reference: result.referenceUrl ?? null };
+
   if (!comparison) {
-    // Ohne Referenz-PDF gibt es nichts zu vergleichen – nur das erzeugte PDF anzeigen.
+    // Ohne Referenz-PDF gibt es nichts zu vergleichen. Das erzeugte Dokument lässt sich aber
+    // im Original prüfen – die drei Vergleichsreiter blendet applyActiveTab dann aus.
     dom.summary.hidden = true;
-    dom.viewControls.hidden = true;
-    dom.tabs.hidden = true;
-    dom.markdownPanel.hidden = true;
-    dom.stylePanel.hidden = true;
     state.markdown = null;
     state.style = null;
-    dom.viewer.hidden = false;
     dom.viewer.replaceChildren();
-    await renderSinglePdf(result.generatedUrl);
+    dom.tabs.hidden = false;
+    applyActiveTab();
     return;
   }
 
   renderSummary(result, comparison);
   renderMarkdownDiff(comparison.markdown);
   renderStyleComparison(comparison.style);
-  state.pdfUrls = { generated: result.generatedUrl ?? null, reference: result.referenceUrl ?? null };
   dom.tabs.hidden = false;
   await renderPages(result, comparison);
   applyActiveTab();
@@ -764,8 +760,8 @@ function renderSpacing(spacing) {
 let letzterCaptureVergleich = null;
 
 async function vergleicheMitAufzeichnung() {
-  if (!state.xmlContent) {
-    dom.captureStatus.textContent = 'Bitte zuerst eine Test-XML-Datei auswählen.';
+  if (!dom.templatePath.value.trim()) {
+    dom.captureStatus.textContent = 'Bitte zuerst einen Vorlagepfad angeben.';
     return;
   }
 
@@ -776,7 +772,7 @@ async function vergleicheMitAufzeichnung() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         templatePath: dom.templatePath.value.trim(),
-        xmlContent: state.xmlContent,
+        xmlContent: state.xmlContent ?? '',
         xmlFileName: state.xmlFileName,
         contentType: dom.contentType.value.trim() || undefined,
         extraHeaders: dom.extraHeaders.value,
@@ -894,21 +890,38 @@ function setActiveTab(tab) {
   saveSettings();
 }
 
+/**
+ * Welche Reiter zur Verfügung stehen. Ohne Vergleichsergebnis – etwa weil kein Referenz-PDF
+ * angegeben wurde – gibt es nichts zu vergleichen; dann bleibt allein „Original prüfen".
+ */
+function verfuegbareReiter() {
+  return state.markdown ? TABS : ['original'];
+}
+
 function applyActiveTab() {
-  const aktiv = state.activeTab;
+  const verfuegbar = verfuegbareReiter();
+  // Die Wahl des Anwenders bleibt erhalten, auch wenn sie gerade nicht zur Verfügung steht:
+  // Sobald wieder ein Vergleich vorliegt, ist der alte Reiter zurück.
+  const aktiv = verfuegbar.includes(state.activeTab) ? state.activeTab : verfuegbar[0];
   const ergebnisVorhanden = !dom.tabs.hidden;
 
-  dom.tabPdf.setAttribute('aria-selected', String(aktiv === 'pdf'));
-  dom.tabMarkdown.setAttribute('aria-selected', String(aktiv === 'markdown'));
-  dom.tabStyle.setAttribute('aria-selected', String(aktiv === 'style'));
-  dom.tabOriginal.setAttribute('aria-selected', String(aktiv === 'original'));
+  const knoepfe = {
+    pdf: dom.tabPdf,
+    markdown: dom.tabMarkdown,
+    style: dom.tabStyle,
+    original: dom.tabOriginal,
+  };
+  for (const [name, knopf] of Object.entries(knoepfe)) {
+    knopf.hidden = !verfuegbar.includes(name);
+    knopf.setAttribute('aria-selected', String(aktiv === name));
+  }
 
   dom.viewer.hidden = aktiv !== 'pdf' || dom.viewer.childElementCount === 0;
   dom.viewControls.hidden = aktiv !== 'pdf' || !ergebnisVorhanden || !state.markdown;
   dom.markdownPanel.hidden = aktiv !== 'markdown' || !ergebnisVorhanden;
   dom.stylePanel.hidden = aktiv !== 'style' || !ergebnisVorhanden;
   dom.originalPanel.hidden = aktiv !== 'original' || !ergebnisVorhanden;
-  applyOriginalDocument();
+  applyOriginalDocument({ angezeigterReiter: aktiv });
 }
 
 /**
@@ -921,7 +934,14 @@ function applyActiveTab() {
  * Geladen wird erst, wenn der Reiter offen ist – und nur, wenn sich die Adresse geändert hat.
  * Sonst gingen Eingaben beim Reiterwechsel verloren.
  */
-function applyOriginalDocument({ force = false } = {}) {
+function applyOriginalDocument({ force = false, angezeigterReiter = null } = {}) {
+  // Ohne Referenz gibt es dort nichts zu zeigen – dann steht die Auswahl gar nicht erst offen.
+  const referenzOption = dom.originalWhich.querySelector('option[value="reference"]');
+  if (referenzOption) referenzOption.disabled = !state.pdfUrls.reference;
+  if (dom.originalWhich.value === 'reference' && !state.pdfUrls.reference) {
+    dom.originalWhich.value = 'generated';
+  }
+
   const url = state.pdfUrls[dom.originalWhich.value] ?? null;
   dom.originalOpen.href = url ?? '#';
   dom.originalOpen.hidden = !url;
@@ -932,7 +952,8 @@ function applyOriginalDocument({ force = false } = {}) {
   dom.originalFallback.hidden = kannEinbetten;
   dom.originalFrame.hidden = !kannEinbetten;
 
-  if (state.activeTab !== 'original' || !url || !kannEinbetten) return;
+  const reiter = angezeigterReiter ?? (verfuegbareReiter().includes(state.activeTab) ? state.activeTab : 'original');
+  if (reiter !== 'original' || !url || !kannEinbetten) return;
   // "#toolbar=1" hält die Bedienleiste des Betrachters sichtbar (Seitenzahl, Zoom, Drucken).
   const ziel = `${url}#toolbar=1`;
   if (force || dom.originalFrame.getAttribute('src') !== ziel) {
@@ -1006,23 +1027,6 @@ async function loadPdf(url) {
   return pdfjsLib.getDocument({ url, standardFontDataUrl: './standard_fonts/' }).promise;
 }
 
-async function renderSinglePdf(url) {
-  const doc = await loadPdf(url);
-  const jobs = [];
-  for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber += 1) {
-    const row = document.createElement('article');
-    row.className = 'page-row';
-    row.innerHTML = `<header><h3>Seite ${pageNumber}</h3></header>`;
-    const panes = document.createElement('div');
-    panes.className = 'panes';
-    const pane = createPane('Generiertes PDF', doc, pageNumber, [], null);
-    panes.append(pane.element);
-    row.append(panes);
-    dom.viewer.append(row);
-    if (pane.job) jobs.push(pane.job);
-  }
-  await runRenderJobs(jobs);
-}
 
 async function renderPages(result, comparison) {
   dom.viewer.hidden = false;
@@ -1329,7 +1333,9 @@ function wireUp() {
     if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
     event.preventDefault();
     const richtung = event.key === 'ArrowRight' ? 1 : -1;
-    const ziel = TABS[(TABS.indexOf(state.activeTab) + richtung + TABS.length) % TABS.length];
+    const verfuegbar = verfuegbareReiter();
+    const jetzt = Math.max(verfuegbar.indexOf(state.activeTab), 0);
+    const ziel = verfuegbar[(jetzt + richtung + verfuegbar.length) % verfuegbar.length];
     setActiveTab(ziel);
     tabButtons[ziel].focus();
   });
