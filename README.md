@@ -64,7 +64,8 @@ npm test          # Testsuite
 | --- | --- |
 | **Test-XML-Datei** | Lokale `.xml`-Datei. Ihr Inhalt (ohne XML-Deklaration) bildet den Hauptteil des POST-Bodys. Pflichtangabe. |
 | **Referenz-PDF-Datei** | Lokale `.pdf`-Datei, gegen die verglichen wird. **Optional.** |
-| **Vorlagepfad** | Freier String, wird als erste Zeile des POST-Bodys gesendet. Pflichtangabe. |
+| **Vorlagepfad** | Verzeichnis der Vorlage (ohne Dateinamen), z. B. `C:\Vorlagen`. Pflichtangabe. |
+| **Template-Name** | Dateiname der Vorlage, z. B. `rechnung.tpl`. Optional. Pfad und Name werden zur ersten Zeile des POST-Bodys verbunden, dazwischen ein `/` (z. B. `C:\Vorlagen/rechnung.tpl`). |
 
 Das **Referenz-PDF ist optional**: Ohne es wird das Dokument ganz normal erzeugt, es gibt nur
 nichts zu vergleichen. Die drei Vergleichsreiter verschwinden dann und es bleibt
@@ -856,7 +857,12 @@ Ohne diesen Schalter wird bei Erfolg nur eine Zeile geschrieben
 ### Den Unterschied automatisch finden lassen
 
 Wenn derselbe Aufruf mit Postman funktioniert, hier aber nicht, findet die Anwendung den
-Unterschied selbst. Unter **„Mit Postman (oder einem anderen Werkzeug) vergleichen"**:
+Unterschied selbst. Die beiden Diagnose-Bereiche – **„Mit Postman (oder einem anderen Werkzeug)
+vergleichen"** und **„Gesendeter Request (Diagnose)"** – sind standardmäßig ausgeblendet und
+lassen sich unter *Erweiterte Einstellungen → „Diagnose-Werkzeuge anzeigen"* einblenden. (Bei
+einem Fehler des Zielservice wird der gesendete Request unabhängig davon immer gezeigt.)
+
+Unter **„Mit Postman (oder einem anderen Werkzeug) vergleichen"**:
 
 1. Die dort angezeigte Adresse (`http://127.0.0.1:3000/api/capture`) in Postman **statt** der
    Ziel-URL eintragen und die funktionierende Anfrage einmal absenden. Die Anwendung zeichnet

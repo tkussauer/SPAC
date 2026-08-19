@@ -137,13 +137,13 @@ export function createApp({
         );
       }
 
-      const { templatePath, xmlContent, xmlFileName, contentType, extraHeaders, lineEnding } = req.body ?? {};
+      const { templatePath, templateName, xmlContent, xmlFileName, contentType, extraHeaders, lineEnding } = req.body ?? {};
       const template = validateTemplatePath(templatePath);
       validateXmlContent(xmlContent, xmlFileName || 'Test-XML');
 
       const eigener = buildRequest({
         targetUrl: 'http://vergleich.lokal/',
-        body: buildPostBody({ templatePath: template, xmlContent, lineEnding }),
+        body: buildPostBody({ templatePath: template, templateName, xmlContent, lineEnding }),
         contentType: typeof contentType === 'string' && contentType.trim() ? contentType.trim() : undefined,
         extraHeaders: parseHeaderLines(extraHeaders),
       });
@@ -198,6 +198,7 @@ export function createApp({
       const {
         targetUrl,
         templatePath,
+        templateName,
         xmlContent,
         xmlFileName,
         referenceId,
@@ -229,7 +230,7 @@ export function createApp({
         );
       }
 
-      const body = buildPostBody({ templatePath: template, xmlContent, lineEnding });
+      const body = buildPostBody({ templatePath: template, templateName, xmlContent, lineEnding });
 
       let result;
       try {

@@ -18,6 +18,7 @@ const dom = {
   referenceFile: el('reference-file'),
   targetUrl: el('target-url'),
   templatePath: el('template-path'),
+  templateName: el('template-name'),
   contentType: el('content-type'),
   extraHeaders: el('extra-headers'),
   lineEnding: el('line-ending'),
@@ -62,6 +63,8 @@ const dom = {
   toggleHighlights: el('toggle-highlights'),
   diagnostics: el('diagnostics'),
   diagnosticsContent: el('diagnostics-content'),
+  showDiagnostics: el('show-diagnostics'),
+  capture: el('capture'),
   captureUrl: el('capture-url'),
   captureCopy: el('capture-copy'),
   captureCompare: el('capture-compare'),
@@ -118,6 +121,7 @@ function loadSettings() {
     const saved = JSON.parse(raw);
     if (typeof saved.targetUrl === 'string') dom.targetUrl.value = saved.targetUrl;
     if (typeof saved.templatePath === 'string') dom.templatePath.value = saved.templatePath;
+    if (typeof saved.templateName === 'string') dom.templateName.value = saved.templateName;
     if (typeof saved.contentType === 'string' && saved.contentType.trim()) {
       dom.contentType.value = saved.contentType;
     }
@@ -142,6 +146,7 @@ function loadSettings() {
     if (typeof saved.ignorePageShift === 'boolean') {
       dom.ignorePageShift.checked = saved.ignorePageShift;
     }
+    if (typeof saved.showDiagnostics === 'boolean') dom.showDiagnostics.checked = saved.showDiagnostics;
     // Die erweiterten Einstellungen bleiben zugeklappt, bis sie jemand selbst aufklappt.
     if (saved.advancedOpen === true) dom.advanced?.setAttribute('open', '');
     if (typeof saved.showHighlights === 'boolean') dom.toggleHighlights.checked = saved.showHighlights;
@@ -159,6 +164,7 @@ function saveSettings() {
       JSON.stringify({
         targetUrl: dom.targetUrl.value,
         templatePath: dom.templatePath.value,
+        templateName: dom.templateName.value,
         contentType: dom.contentType.value,
         extraHeaders: dom.extraHeaders.value,
         lineEnding: dom.lineEnding.value,
@@ -171,6 +177,7 @@ function saveSettings() {
         ignoreSingleLetters: dom.ignoreSingleLetters.checked,
         ignoreWords: dom.ignoreWords.value,
         ignorePageShift: dom.ignorePageShift.checked,
+        showDiagnostics: dom.showDiagnostics.checked,
         advancedOpen: dom.advanced?.hasAttribute('open') ?? false,
         showHighlights: dom.toggleHighlights.checked,
         onlyDiffLines: dom.toggleOnlyDiff.checked,
@@ -193,7 +200,7 @@ function showError(message, details, logFile = null) {
 
   // Bei Fehlern des Zielservice den gesendeten Body und die Antwort mit anzeigen.
   if (details?.request) {
-    renderExchange(details.request, details.response);
+    renderExchange(details.request, details.response, { force: true });
     dom.errorDetails.hidden = true;
   } else if (details) {
     dom.errorDetails.textContent = typeof details === 'string' ? details : JSON.stringify(details, null, 2);
@@ -312,6 +319,7 @@ async function runComparison({ reason = 'generate' } = {}) {
       body: JSON.stringify({
         targetUrl: dom.targetUrl.value.trim(),
         templatePath: dom.templatePath.value.trim(),
+        templateName: dom.templateName.value.trim(),
         xmlContent: state.xmlContent,
         xmlFileName: state.xmlFileName,
         referenceId: state.referenceId,
@@ -361,7 +369,7 @@ function formatHeaders(headers) {
  * Zeigt den exakt gesendeten Request und die Antwort an – hilft beim Eingrenzen
  * von Endpoint-Problemen. Wird bei Erfolg und bei Fehlern verwendet.
  */
-function renderExchange(request, response) {
+function renderExchange(request, response, { force = false } = {}) {
   const lines = [
     '--- GESENDETER REQUEST ---',
     `POST ${request.targetUrl}`,
@@ -390,8 +398,12 @@ function renderExchange(request, response) {
   }
 
   dom.diagnosticsContent.textContent = lines.join('\n');
-  dom.diagnostics.hidden = false;
-  dom.diagnostics.setAttribute('open', '');
+  // Standardmäßig ausgeblendet; nur bei aktivierter Diagnose einblenden. Bei einem Fehler wird
+  // die Anzeige erzwungen (force), da der gesendete Request dann zur Fehlersuche gebraucht wird.
+  const sichtbar = force || dom.showDiagnostics.checked;
+  dom.diagnostics.hidden = !sichtbar;
+  if (sichtbar) dom.diagnostics.setAttribute('open', '');
+  else dom.diagnostics.removeAttribute('open');
 }
 
 /** Diagnose nach einem erfolgreichen Durchlauf (Antwort ist das PDF). */
@@ -776,6 +788,7 @@ async function vergleicheMitAufzeichnung() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         templatePath: dom.templatePath.value.trim(),
+        templateName: dom.templateName.value.trim(),
         xmlContent: state.xmlContent,
         xmlFileName: state.xmlFileName,
         contentType: dom.contentType.value.trim() || undefined,
@@ -1099,6 +1112,22 @@ function applyHighlightVisibility() {
   dom.viewer.classList.toggle('highlights-hidden', !dom.toggleHighlights.checked);
 }
 
+/**
+ * Blendet die Diagnose-Werkzeuge je nach Einstellung ein oder aus: den Postman-Vergleich
+ * (#capture) und den zuletzt gesendeten Request (#diagnostics). Standardmäßig ausgeblendet.
+ */
+function applyDiagnosticsVisibility() {
+  const an = dom.showDiagnostics.checked;
+  dom.capture.hidden = !an;
+  if (!an) {
+    dom.diagnostics.hidden = true;
+    dom.diagnostics.removeAttribute('open');
+  } else if (dom.diagnosticsContent.textContent.trim()) {
+    // Nach einem Lauf liegt bereits ein Request vor – dann wieder zeigen.
+    dom.diagnostics.hidden = false;
+  }
+}
+
 /** Graut die mm-Felder aus, solange die Kopf-/Fußzeilen-Option nicht aktiv ist. */
 function applyHeaderFooterState() {
   const aktiv = dom.ignoreHeaderFooter.checked;
@@ -1298,6 +1327,7 @@ function wireUp() {
     saveSettings();
     dom.refreshButton.disabled = !canRefresh();
   });
+  dom.templateName.addEventListener('input', saveSettings);
   dom.contentType.addEventListener('input', saveSettings);
   dom.extraHeaders.addEventListener('input', saveSettings);
   dom.lineEnding.addEventListener('change', saveSettings);
@@ -1313,8 +1343,13 @@ function wireUp() {
   dom.ignoreSingleLetters.addEventListener('change', saveSettings);
   dom.ignoreWords.addEventListener('input', saveSettings);
   dom.ignorePageShift.addEventListener('change', saveSettings);
+  dom.showDiagnostics.addEventListener('change', () => {
+    applyDiagnosticsVisibility();
+    saveSettings();
+  });
   dom.advanced?.addEventListener('toggle', saveSettings);
   applyHeaderFooterState();
+  applyDiagnosticsVisibility();
 
   // Markierungen ein-/ausblenden (Zustand bleibt erhalten)
   dom.toggleHighlights.addEventListener('change', () => {

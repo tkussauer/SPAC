@@ -13,7 +13,6 @@
   <body>
     <header class="app-header">
       <h1>PDF-Vergleichstool <span class="app-version">V3</span></h1>
-      <p class="subtitle">Test-XML an den Zielservice senden, erzeugtes PDF mit der Referenz vergleichen.</p>
     </header>
 
     <main>
@@ -41,11 +40,26 @@
               type="text"
               id="template-path"
               name="templatePath"
-              placeholder="z. B. C:\Vorlagen\rechnung.tpl"
+              placeholder="z. B. C:\Vorlagen"
               spellcheck="false"
               required
             />
-            <span class="hint">Freier String – wird als erste Zeile des POST-Bodys gesendet</span>
+            <span class="hint">Verzeichnis der Vorlage – ohne Dateinamen</span>
+          </label>
+
+          <label class="field">
+            <span class="field-label">Template-Name</span>
+            <input
+              type="text"
+              id="template-name"
+              name="templateName"
+              placeholder="z. B. rechnung.tpl"
+              spellcheck="false"
+            />
+            <span class="hint">
+              Wird an den Vorlagepfad angehängt, dazwischen ein „/“. Aus Pfad und Name entsteht die
+              erste Zeile des POST-Bodys (z. B. <code>C:\Vorlagen/rechnung.tpl</code>).
+            </span>
           </label>
         </div>
 
@@ -222,6 +236,16 @@
               werden immer automatisch gesetzt.
             </span>
           </label>
+
+          <label class="toggle">
+            <input type="checkbox" id="show-diagnostics" />
+            <span>Diagnose-Werkzeuge anzeigen</span>
+          </label>
+          <span class="hint">
+            Blendet die Bereiche „Mit Postman (oder einem anderen Werkzeug) vergleichen“ und
+            „Gesendeter Request (Diagnose)“ ein. Standardmäßig ausgeblendet – sie werden nur zur
+            Fehlersuche am Endpoint gebraucht.
+          </span>
         </details>
 
         <div class="actions">
@@ -263,7 +287,7 @@
       </section>
 
       <!-- Findet den Unterschied zu einem Aufruf, der mit einem anderen Werkzeug funktioniert -->
-      <details id="capture" class="card capture">
+      <details id="capture" class="card capture" hidden>
         <summary>Mit Postman (oder einem anderen Werkzeug) vergleichen</summary>
         <ol class="capture-steps">
           <li>

@@ -39,15 +39,27 @@ export function detectLineEnding(text) {
 }
 
 /**
+ * Verbindet Vorlagepfad und Template-Name zur Referenz, die in der ersten Zeile des Bodys steht.
+ * Zwischen beiden steht genau ein `/`. Ein bereits vorhandener Trenner am Pfadende bzw. am
+ * Namensanfang (`/` oder `\`) wird nicht verdoppelt. Ohne Namen bleibt der Pfad unverändert.
+ */
+export function joinTemplateReference(templatePath, templateName = '') {
+  const pfad = normalizeLineEndings(templatePath).split('\n')[0].trim();
+  const name = normalizeLineEndings(templateName ?? '').split('\n')[0].trim();
+  if (name === '') return pfad;
+  return `${pfad.replace(/[\\/]+$/, '')}/${name.replace(/^[\\/]+/, '')}`;
+}
+
+/**
  * Baut den POST-Body gemäß FR3:
- *   Zeile 1: Vorlagepfad
+ *   Zeile 1: Vorlagepfad (+ „/“ + Template-Name, sofern angegeben)
  *   Zeile 2: leer
  *   ab Zeile 3: Inhalt der Test-XML ohne XML-Deklaration
  *
  * @param {'lf'|'crlf'|'keep'} lineEnding Zeilenenden des Bodys. "keep" übernimmt die
  *        Zeilenenden der XML-Datei unverändert – manche Endpoints reagieren darauf.
  */
-export function buildPostBody({ templatePath, xmlContent, lineEnding = 'lf' }) {
+export function buildPostBody({ templatePath, templateName = '', xmlContent, lineEnding = 'lf' }) {
   if (typeof templatePath !== 'string' || templatePath.trim() === '') {
     throw new AppError('TEMPLATE_PATH_REQUIRED', 'Bitte einen Vorlagepfad angeben.');
   }
@@ -55,7 +67,7 @@ export function buildPostBody({ templatePath, xmlContent, lineEnding = 'lf' }) {
     throw new AppError('XML_REQUIRED', 'Bitte eine Test-XML-Datei auswählen (Datei ist leer oder wurde nicht gelesen).');
   }
 
-  const path = normalizeLineEndings(templatePath).split('\n')[0].trim();
+  const path = joinTemplateReference(templatePath, templateName);
   const xmlBody = stripXmlDeclaration(xmlContent);
 
   if (lineEnding === 'keep') {
