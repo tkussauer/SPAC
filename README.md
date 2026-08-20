@@ -64,8 +64,24 @@ npm test          # Testsuite
 | --- | --- |
 | **Test-XML-Datei** | Lokale `.xml`-Datei. Ihr Inhalt (ohne XML-Deklaration) bildet den Hauptteil des POST-Bodys. Pflichtangabe. |
 | **Referenz-PDF-Datei** | Lokale `.pdf`-Datei, gegen die verglichen wird. **Optional.** |
-| **Vorlagepfad** | Verzeichnis der Vorlage (ohne Dateinamen), z. B. `C:\Vorlagen`. Pflichtangabe. |
-| **Template-Name** | Dateiname der Vorlage, z. B. `rechnung.tpl`. Optional. Pfad und Name werden zur ersten Zeile des POST-Bodys verbunden, dazwischen ein `/` (z. B. `C:\Vorlagen/rechnung.tpl`). |
+| **Vorlagepfad** | Auswahl aus der Konfigurationsdatei [`vorlagepfade.txt`](vorlagepfade.txt) (siehe unten). Pflichtangabe; beim Start ist der erste Eintrag voreingestellt. |
+| **Template-Name** | Dateiname der Vorlage, z. B. `rechnung.tpl`. Optional. Pfad und Name werden zur ersten Zeile des POST-Bodys verbunden, dazwischen ein `/` (z. B. `icm://Interactive/VHV/Templates/KFZ/rechnung.tpl`). |
+
+#### Vorlagepfade konfigurieren
+
+Die zur Auswahl stehenden Vorlagepfade stehen in der Datei `vorlagepfade.txt` im
+Programmverzeichnis – **ein Pfad je Zeile**. Leerzeilen und mit `#` beginnende Zeilen werden
+übersprungen. Der **erste Eintrag** ist beim Start voreingestellt. Nach einer Änderung genügt ein
+Neuladen der Seite; ein Serverneustart ist nicht nötig. Fehlt die Datei, gelten die eingebauten
+Vorgaben:
+
+```
+icm://Interactive/VHV/Templates/KFZ
+icm://Interactive/VHV/Templates/KFZ/Hell
+icm://Interactive/VHV/Templates/Schaden KFZ
+icm://Interactive/VHV/Templates/Schaden KFZ/Hell
+icm://Interactive/VHV/Templates/Leben
+```
 
 Das **Referenz-PDF ist optional**: Ohne es wird das Dokument ganz normal erzeugt, es gibt nur
 nichts zu vergleichen. Die drei Vergleichsreiter verschwinden dann und es bleibt
@@ -550,8 +566,9 @@ sondern vom Vergleich ausgenommen; die Oberfläche weist dann darauf hin.
   (Strg, Alt, Umschalt) bleibt sie wirkungslos, damit Browser-Kürzel unangetastet bleiben.
 - **Generiertes PDF herunterladen** – speichert die Antwort als Datei.
 
-Ziel-URL und Vorlagepfad werden im Browser (`localStorage`) gespeichert und stehen beim
-nächsten Start wieder zur Verfügung (NFR3).
+Ziel-URL, Template-Name und die Einstellungen werden im Browser (`localStorage`) gespeichert und
+stehen beim nächsten Start wieder zur Verfügung (NFR3). Der **Vorlagepfad** wird bewusst nicht
+gemerkt: Beim Start ist stets der erste Eintrag der Konfiguration voreingestellt.
 
 ---
 

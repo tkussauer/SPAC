@@ -1,0 +1,8 @@
+# Zur Auswahl stehende Vorlagepfade – ein Pfad je Zeile.
+# Leerzeilen und mit "#" beginnende Zeilen werden ignoriert.
+# Der erste Eintrag ist beim Start voreingestellt.
+icm://Interactive/VHV/Templates/KFZ
+icm://Interactive/VHV/Templates/KFZ/Hell
+icm://Interactive/VHV/Templates/Schaden KFZ
+icm://Interactive/VHV/Templates/Schaden KFZ/Hell
+icm://Interactive/VHV/Templates/Leben

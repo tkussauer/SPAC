@@ -36,15 +36,11 @@
 
           <label class="field">
             <span class="field-label">Vorlagepfad</span>
-            <input
-              type="text"
-              id="template-path"
-              name="templatePath"
-              placeholder="z. B. C:\Vorlagen"
-              spellcheck="false"
-              required
-            />
-            <span class="hint">Verzeichnis der Vorlage – ohne Dateinamen</span>
+            <select id="template-path" name="templatePath" required></select>
+            <span class="hint">
+              Auswahl aus der Konfigurationsdatei <code>vorlagepfade.txt</code> im
+              Programmverzeichnis. Der erste Eintrag ist beim Start voreingestellt.
+            </span>
           </label>
 
           <label class="field">

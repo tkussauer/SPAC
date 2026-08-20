@@ -9,6 +9,18 @@ const MIN_PAGE_WIDTH = 280;
 const MAX_PIXEL_RATIO = 2;
 /** Wartezeit, bevor nach einer Fenstergrößenänderung neu gezeichnet wird. */
 const RESIZE_DELAY_MS = 250;
+/**
+ * Vorlagepfade als Rückfallebene, falls /api/config nicht erreichbar ist. Die maßgebliche Liste
+ * kommt vom Server (aus der Konfigurationsdatei vorlagepfade.txt); dies verhindert nur eine leere
+ * Auswahl im Fehlerfall.
+ */
+const FALLBACK_TEMPLATE_PATHS = [
+  'icm://Interactive/VHV/Templates/KFZ',
+  'icm://Interactive/VHV/Templates/KFZ/Hell',
+  'icm://Interactive/VHV/Templates/Schaden KFZ',
+  'icm://Interactive/VHV/Templates/Schaden KFZ/Hell',
+  'icm://Interactive/VHV/Templates/Leben',
+];
 
 const el = (id) => document.getElementById(id);
 
@@ -120,7 +132,8 @@ function loadSettings() {
     if (!raw) return;
     const saved = JSON.parse(raw);
     if (typeof saved.targetUrl === 'string') dom.targetUrl.value = saved.targetUrl;
-    if (typeof saved.templatePath === 'string') dom.templatePath.value = saved.templatePath;
+    // Der Vorlagepfad wird bewusst NICHT wiederhergestellt: Beim Start ist stets der erste
+    // Eintrag der Konfiguration voreingestellt (siehe populateTemplatePaths).
     if (typeof saved.templateName === 'string') dom.templateName.value = saved.templateName;
     if (typeof saved.contentType === 'string' && saved.contentType.trim()) {
       dom.contentType.value = saved.contentType;
@@ -163,7 +176,6 @@ function saveSettings() {
       STORAGE_KEY,
       JSON.stringify({
         targetUrl: dom.targetUrl.value,
-        templatePath: dom.templatePath.value,
         templateName: dom.templateName.value,
         contentType: dom.contentType.value,
         extraHeaders: dom.extraHeaders.value,
@@ -1128,6 +1140,33 @@ function applyDiagnosticsVisibility() {
   }
 }
 
+/**
+ * Füllt die Auswahl der Vorlagepfade aus der Server-Konfiguration (vorlagepfade.txt). Der erste
+ * Eintrag ist voreingestellt. Schlägt der Abruf fehl, greift eine eingebaute Rückfallliste.
+ */
+async function populateTemplatePaths() {
+  let pfade = FALLBACK_TEMPLATE_PATHS;
+  try {
+    const cfg = await (await fetch('/api/config')).json();
+    if (Array.isArray(cfg.templatePaths) && cfg.templatePaths.length > 0) {
+      pfade = cfg.templatePaths;
+    }
+  } catch {
+    /* Server nicht erreichbar – Rückfallliste verwenden. */
+  }
+
+  dom.templatePath.replaceChildren(
+    ...pfade.map((pfad, index) => {
+      const option = document.createElement('option');
+      option.value = pfad;
+      option.textContent = pfad;
+      if (index === 0) option.selected = true;
+      return option;
+    })
+  );
+  dom.refreshButton.disabled = !canRefresh();
+}
+
 /** Graut die mm-Felder aus, solange die Kopf-/Fußzeilen-Option nicht aktiv ist. */
 function applyHeaderFooterState() {
   const aktiv = dom.ignoreHeaderFooter.checked;
@@ -1297,6 +1336,7 @@ function beschreibeTextstil(run) {
 
 function wireUp() {
   loadSettings();
+  populateTemplatePaths();
 
   dom.xmlFile.addEventListener('change', async (event) => {
     clearError();
@@ -1347,8 +1387,7 @@ function wireUp() {
     saveSettings();
     dom.refreshButton.disabled = !canRefresh();
   });
-  dom.templatePath.addEventListener('input', () => {
-    saveSettings();
+  dom.templatePath.addEventListener('change', () => {
     dom.refreshButton.disabled = !canRefresh();
   });
   dom.templateName.addEventListener('input', saveSettings);

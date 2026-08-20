@@ -28,9 +28,10 @@ test('FR1: Die Eingabemaske enthält alle vier geforderten Felder', async () => 
   assert.ok(urlInput, 'Textfeld für die Ziel-URL fehlt');
   assert.match(urlInput, /type="text"/);
 
-  const templateInput = html.match(/<input[^>]*id="template-path"[^>]*>/s)?.[0];
-  assert.ok(templateInput, 'Textfeld für den Vorlagepfad fehlt');
-  assert.match(templateInput, /type="text"/);
+  // Der Vorlagepfad wird aus einer Konfiguration ausgewählt – daher ein Auswahlfeld.
+  const templateSelect = html.match(/<select[^>]*id="template-path"[^>]*>/s)?.[0];
+  assert.ok(templateSelect, 'Auswahlfeld für den Vorlagepfad fehlt');
+  assert.match(templateSelect, /required/);
 });
 
 test('FR1: Die gebaute Oberfläche wird vom Server ausgeliefert', async () => {

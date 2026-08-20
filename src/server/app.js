@@ -12,9 +12,12 @@ import { logger, DEFAULT_LOG_FILE } from './lib/logger.js';
 import { buildCurlCommand, parseHeaderLines } from './lib/httpHeaders.js';
 import { assertPdf, validateTargetUrl, validateTemplatePath, validateXmlContent } from './lib/validate.js';
 import { APP_VERSION, APP_VERSION_LABEL } from '../version.js';
+import { readTemplatePaths } from './lib/templatePaths.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const PUBLIC_DIR = path.resolve(here, '../../public');
+/** Wurzelverzeichnis des Projekts – hier liegt u. a. die Vorlagepfad-Konfiguration. */
+export const ROOT_DIR = path.resolve(here, '../../');
 const MAX_BODY = process.env.SPAC_MAX_UPLOAD || '75mb';
 
 /** Maximale Größe der Body-Vorschau in der Diagnose-Ausgabe. */
@@ -45,6 +48,7 @@ export function createApp({
   publicDir = PUBLIC_DIR,
   log = logger,
   logBodies = process.env.SPAC_LOG_BODY === '1',
+  templatePaths = readTemplatePaths(ROOT_DIR),
 } = {}) {
   const app = express();
   app.disable('x-powered-by');
@@ -95,6 +99,7 @@ export function createApp({
       postTimeoutMs: DEFAULT_TIMEOUT_MS,
       diffMethod: 'text-extraction',
       templatePathValidation: 'non-empty-string',
+      templatePaths,
       logFile: log.file || DEFAULT_LOG_FILE,
       logBodies,
     });

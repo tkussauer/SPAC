@@ -69,7 +69,7 @@ test('Kopf: Der erklärende Untertitel wurde entfernt', async () => {
 
 test('Diagnose: Eingabefelder für Pfad und Namen sind getrennt vorhanden', async () => {
   const html = await readHtml();
-  assert.match(html, /<input[^>]*id="template-path"[^>]*required/s, 'Vorlagepfad fehlt oder ist nicht Pflicht');
+  assert.match(html, /<select[^>]*id="template-path"[^>]*required/s, 'Vorlagepfad-Auswahl fehlt oder ist nicht Pflicht');
   assert.match(html, /<input[^>]*id="template-name"/s, 'Feld „Template-Name" fehlt');
 });
 
