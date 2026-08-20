@@ -1267,6 +1267,30 @@ async function renderPageInto(wrapper, doc, pageNumber, highlights, geometry) {
     wert.title = `Wert aus dem Formularfeld – im PDF selbst nicht gezeichnet: ${feld.text}`;
     wrapper.append(wert);
   }
+
+  // Referenzseite: unsichtbare Felder über jedem Text, die beim Überfahren Schriftstil und
+  // Farbe nennen. Nur die Referenz liefert textRuns (Anforderung: nur im Referenzdokument).
+  for (const run of geometry?.textRuns ?? []) {
+    const stelle = document.createElement('div');
+    stelle.className = 'text-style';
+    stelle.style.left = `${(run.x / baseWidth) * 100}%`;
+    stelle.style.top = `${(run.y / baseHeight) * 100}%`;
+    stelle.style.width = `${(run.width / baseWidth) * 100}%`;
+    stelle.style.height = `${(run.height / baseHeight) * 100}%`;
+    if (run.color) stelle.style.setProperty('--swatch', run.color);
+    stelle.title = beschreibeTextstil(run);
+    wrapper.append(stelle);
+  }
+}
+
+/** Formuliert Schriftstil und Farbe eines Textes als Tooltip. */
+function beschreibeTextstil(run) {
+  const schnitt =
+    run.bold && run.italic ? 'fett kursiv' : run.bold ? 'fett' : run.italic ? 'kursiv' : 'normal';
+  const teile = [run.font || 'unbekannte Schrift', schnitt];
+  if (run.size) teile.push(`${Math.round(run.size * 10) / 10} pt`);
+  const farbe = run.color ? `Farbe ${run.color}` : 'Farbe unbekannt';
+  return `„${run.text}“\nSchrift: ${teile.join(', ')}\n${farbe}`;
 }
 
 // ------------------------------------------------------------------- Events

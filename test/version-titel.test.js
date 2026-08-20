@@ -9,7 +9,7 @@ import { startApp } from './helpers/fixtures.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 /**
- * Die Version soll im Titel erscheinen. Maßgeblich ist package.json; der Anzeigetext „V3" wird
+ * Die Version soll im Titel erscheinen. Maßgeblich ist package.json; der Anzeigetext „V4" wird
  * daraus abgeleitet. Diese Tests halten Titel, Überschrift und package.json zusammen – wird die
  * Version erhöht, ohne den Titel anzupassen (oder umgekehrt), schlagen sie an.
  */
@@ -17,8 +17,8 @@ test('Version: package.json liefert die Kennung V<Hauptversion>', async () => {
   const pkg = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
   assert.equal(APP_VERSION, pkg.version, 'APP_VERSION weicht von package.json ab');
   assert.equal(APP_VERSION_LABEL, `V${pkg.version.split('.')[0]}`);
-  assert.equal(APP_VERSION_LABEL, 'V3', 'Aktuell erwartete Kennung ist V3');
-  assert.equal(APP_TITLE, 'PDF-Vergleichstool V3');
+  assert.equal(APP_VERSION_LABEL, 'V4', 'Aktuell erwartete Kennung ist V4');
+  assert.equal(APP_TITLE, 'PDF-Vergleichstool V4');
 });
 
 test('Version: Browser-Titel und Überschrift zeigen die Kennung', async () => {

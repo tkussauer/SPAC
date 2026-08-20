@@ -117,6 +117,29 @@ export function nichtGezeichneteFeldwerte(page) {
 }
 
 /**
+ * Gezeichnete Texte einer Seite mit ihrem Schriftstil und ihrer Farbe – für die
+ * Tooltips beim Überfahren der Referenzseite in der visuellen Ansicht. Nur sichtbarer
+ * Text mit Position; nicht gezeichnete Formularwerte (XFA) bleiben außen vor, die zeigt
+ * die Ansicht bereits gesondert.
+ */
+export function textRunsFuerAnsicht(page) {
+  return (page?.words ?? [])
+    .filter((word) => word.box && typeof word.text === 'string' && word.text.trim() !== '' && word.formSource !== 'xfa')
+    .map((word) => ({
+      x: word.box.x,
+      y: word.box.y,
+      width: word.box.width,
+      height: word.box.height,
+      text: word.text,
+      font: word.style?.font ?? null,
+      bold: word.style?.bold ?? false,
+      italic: word.style?.italic ?? false,
+      size: word.style?.size ?? null,
+      color: word.style?.color ?? null,
+    }));
+}
+
+/**
  * Die Wortunterschiede einer Seite – noch als Wörter, nicht als Boxen. So lassen sie sich
  * anschließend über Seitengrenzen hinweg gegenrechnen (siehe pageShift.js).
  */
@@ -178,6 +201,8 @@ function buildPageResult({ pageNumber, referencePage, generatedPage, missing, ad
           height: referencePage.height,
           highlights: [],
           formValues: nichtGezeichneteFeldwerte(referencePage),
+          // Für die Tooltips: Schriftstil und Farbe je Text beim Überfahren der Referenz.
+          textRuns: textRunsFuerAnsicht(referencePage),
         }
       : null,
     generated: generatedPage

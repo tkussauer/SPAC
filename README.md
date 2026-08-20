@@ -143,6 +143,11 @@ Legende zu beiden Markierungsarten. Der Schalter blendet alle Markierungen aus, 
 Seiten neu zu zeichnen – praktisch, um kurz das unverfälschte Dokument zu sehen. Der Zustand
 bleibt wie die übrigen Eingaben erhalten.
 
+**Schriftstil und Farbe per Tooltip:** Im **Referenzdokument** nennt ein Tooltip beim Überfahren
+eines Textes dessen Schriftstil (Name, Schnitt, Größe) und Farbe – hilfreich, um bei einer
+Abweichung schnell zu sehen, wie die Vorlage an dieser Stelle gesetzt ist. Beim Überfahren wird
+die betreffende Stelle zart umrandet und zeigt einen Farbtupfer in der tatsächlichen Textfarbe.
+
 Die Seiten werden auf die tatsächlich verfügbare Spaltenbreite gezeichnet (in Gerätepixeln,
 daher scharf) und nach einer Größenänderung des Fensters neu gerendert. Zwischen den beiden
 Dokumenten bleibt dadurch nur der Spaltenabstand.
@@ -712,8 +717,8 @@ die Zeilenstruktur des Bodys aus FR3 garantiert eingehalten wird.
 ## Weitere Festlegungen
 
 - **Version im Titel:** Der Browser-Titel und die Überschrift zeigen die Hauptversion an
-  (aktuell `PDF-Vergleichstool V3`). Maßgeblich ist das Feld `version` in `package.json`; die
-  Kennung `V3` wird daraus abgeleitet (`src/version.js`) und ist auch über `GET /api/health`
+  (aktuell `PDF-Vergleichstool V4`). Maßgeblich ist das Feld `version` in `package.json`; die
+  Kennung `V4` wird daraus abgeleitet (`src/version.js`) und ist auch über `GET /api/health`
   abrufbar. Ein Test hält Titel, Überschrift und `package.json` zusammen.
 - **Speicherung der PDFs:** im Arbeitsspeicher des Servers (die letzten 20 Dokumente).
   Nach einem Serverneustart muss die Referenz-PDF erneut ausgewählt werden; die Anwendung
